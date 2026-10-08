@@ -1,0 +1,27 @@
+<resources>
+    <string name="app_name">BASIC Studio</string>
+    <string name="editor_tab">Editor</string>
+    <string name="terminal_tab">Terminal</string>
+    <string name="bytecode_tab">Bytecode</string>
+    <string name="debugger_tab">Debug</string>
+    <string name="run_action">Run</string>
+    <string name="debug_action">Debug</string>
+    <string name="step_action">Step</string>
+    <string name="stop_action">Stop</string>
+    <string name="clear_action">Clear</string>
+    <string name="export_apk_action">Export APK</string>
+    <string name="exporting_apk">Building standalone APK…</string>
+    <string name="apk_ready">APK Generated successfully</string>
+    <string name="new_program">New</string>
+    <string name="samples">Samples</string>
+    <string name="terminal_title">BASIC Virtual Terminal</string>
+    <string name="input_prompt">Input:</string>
+    <string name="send">Send</string>
+    <string name="compilation_success">Compilation Succeeded</string>
+    <string name="compilation_error">Compilation Error</string>
+    <string name="runtime_error">Runtime Error</string>
+    <string name="breakpoints">Breakpoints</string>
+    <string name="call_stack">Call Stack / GOSUB</string>
+    <string name="variables">Variables Watch</string>
+    <string name="ip_label">Instruction Pointer</string>
+</resources>

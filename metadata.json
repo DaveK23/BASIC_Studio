@@ -1,0 +1,6 @@
+{
+  "name": "BASIC Studio",
+  "description": "An IDE for writing BASIC programs, compiling them to bytecode, real-time debugging with variable watch and step execution, terminal emulator for PRINT and INPUT, and standalone APK export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

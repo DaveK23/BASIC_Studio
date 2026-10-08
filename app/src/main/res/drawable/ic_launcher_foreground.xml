@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Terminal window frame -->
+    <path
+        android:pathData="M26,28 h56 a4,4 0 0,1 4,4 v44 a4,4 0 0,1 -4,4 h-56 a4,4 0 0,1 -4,-4 v-44 a4,4 0 0,1 4,-4 z"
+        android:fillColor="#1E293B"
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="1.5" />
+    <!-- Terminal header dots -->
+    <path
+        android:pathData="M28,34 a2,2 0 1,0 0.01,0"
+        android:fillColor="#EF4444" />
+    <path
+        android:pathData="M34,34 a2,2 0 1,0 0.01,0"
+        android:fillColor="#F59E0B" />
+    <path
+        android:pathData="M40,34 a2,2 0 1,0 0.01,0"
+        android:fillColor="#10B981" />
+    <!-- Code prompt ">_" -->
+    <path
+        android:pathData="M32,46 L42,53 L32,60"
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M46,60 L56,60"
+        android:strokeColor="#10B981"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round" />
+    <!-- Retro BASIC Byte badge "10" / chips -->
+    <path
+        android:pathData="M60,45 h18 v22 h-18 z"
+        android:fillColor="#0284C7" />
+    <!-- Byte chip pins -->
+    <path
+        android:pathData="M63,42 v3 M70,42 v3 M77,42 v3 M63,67 v3 M70,67 v3 M77,67 v3"
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="1.2"
+        android:strokeLineCap="round" />
+</vector>
