@@ -17,7 +17,7 @@ android {
   defaultConfig {
     applicationId = "com.aistudio.basicstudio.vjzkpq"
     minSdk = 24
-    targetSdk = 36
+    targetSdk = 34
     versionCode = 1
     versionName = "1.0"
 
@@ -61,6 +61,11 @@ android {
   dependenciesInfo {
     includeInApk = false
     includeInBundle = true
+  }
+  packaging {
+    jniLibs {
+      useLegacyPackaging = true
+    }
   }
 }
 
@@ -133,6 +138,7 @@ dependencies {
   androidTestImplementation(libs.androidx.runner)
   debugImplementation(libs.androidx.compose.ui.test.manifest)
   debugImplementation(libs.androidx.compose.ui.tooling)
+  implementation(files("libs/apksigner.jar"))
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
 }

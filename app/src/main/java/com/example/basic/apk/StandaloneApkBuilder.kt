@@ -13,11 +13,13 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
 import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
@@ -25,7 +27,8 @@ data class ApkExportResult(
     val file: File,
     val publicPath: String,
     val fileSizeFormatted: String,
-    val isMediaStored: Boolean = false
+    val isMediaStored: Boolean = false,
+    val validationReport: ApkValidationReport? = null
 )
 
 object StandaloneApkBuilder {
@@ -57,34 +60,23 @@ object StandaloneApkBuilder {
         return json.toString(2).toByteArray(Charsets.UTF_8)
     }
 
-    /**
-     * Obtains the base template APK input stream reliably:
-     * 1) Priority 1: The app's own installed APK via context.applicationInfo.sourceDir
-     * 2) Priority 2: Assets bundled runner-base.apk
-     */
-    private fun openBaseApkInputStream(context: Context): InputStream {
+    private fun getBaseApkFile(context: Context): File? {
         val sourceDir = context.applicationInfo.sourceDir
         if (!sourceDir.isNullOrEmpty()) {
             val installedApkFile = File(sourceDir)
-            if (installedApkFile.exists() && installedApkFile.length() > 100_000L) {
-                return BufferedInputStream(FileInputStream(installedApkFile))
+            if (installedApkFile.exists() && installedApkFile.length() > 500_000L) {
+                return installedApkFile
             }
         }
-
-        // Secondary fallback to bundled asset
-        return try {
-            BufferedInputStream(context.assets.open("runner-base.apk"))
-        } catch (e: Exception) {
-            // Last-resort fallback to sourceDir
-            BufferedInputStream(FileInputStream(File(sourceDir)))
-        }
+        return null
     }
 
     /**
-     * Builds a real, complete, signed, and installable standalone Android APK.
-     * Packages the full Android runtime DEX classes, native libraries, and assets
-     * with the compiled BASIC program injected directly into assets/source.bas and
-     * assets/program.basic.bin.
+     * Builds a standalone installable Android APK:
+     * 1. Extracts binary AndroidManifest.xml and rewrites package and label.
+     * 2. Injects the compiled BASIC bytecode into assets/program.basic.bin.
+     * 3. Signs using official Android SDK ApkSigner with v1, v2, and v3 schemes.
+     * 4. Runs diagnostic verification to report signature status.
      */
     fun buildApk(
         context: Context,
@@ -94,73 +86,165 @@ object StandaloneApkBuilder {
     ): ApkExportResult {
         val safeName = appName.replace(Regex("[^a-zA-Z0-9_]"), "_").lowercase()
         val apkFileName = "$safeName.apk"
+        val currentPackageName = context.packageName
 
-        // Destination in app external downloads
         val appDownloadsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
         val apkFile = File(appDownloadsDir, apkFileName)
 
         val bytecodeBytes = serializeBytecode(program)
         val sourceBytes = program.sourceCode.toByteArray(Charsets.UTF_8)
 
-        val baseApkStream = openBaseApkInputStream(context)
-
-        // Write directly to a temporary file, then atomically replace
         val tempApkFile = File(appDownloadsDir, "$safeName.tmp.apk")
         if (tempApkFile.exists()) tempApkFile.delete()
 
+        val seenEntries = mutableSetOf<String>()
+        val installedFile = getBaseApkFile(context)
+
         BufferedOutputStream(FileOutputStream(tempApkFile)).use { bos ->
             ZipOutputStream(bos).use { zos ->
-                ZipInputStream(baseApkStream).use { zis ->
-                    val buffer = ByteArray(65536)
-                    var entry = zis.nextEntry
-                    while (entry != null) {
-                        val name = entry.name
-                        // Skip any old bundled program payloads or nested runner-base
-                        if (name != "assets/program.basic.bin" &&
-                            name != "assets/source.bas" &&
-                            name != "assets/runner-base.apk"
-                        ) {
-                            val newEntry = ZipEntry(name)
-                            zos.putNextEntry(newEntry)
-                            var count: Int
-                            while (zis.read(buffer).also { count = it } != -1) {
-                                zos.write(buffer, 0, count)
-                            }
-                            zos.closeEntry()
-                        }
-                        entry = zis.nextEntry
+                val buffer = ByteArray(65536)
+
+                fun safePutEntry(entryName: String, data: ByteArray) {
+                    val clean = entryName.trim().trimStart('/')
+                    if (clean.isEmpty() || seenEntries.contains(clean)) return
+                    seenEntries.add(clean)
+                    try {
+                        val newEntry = ZipEntry(clean)
+                        zos.putNextEntry(newEntry)
+                        zos.write(data)
+                        zos.closeEntry()
+                    } catch (ignored: Exception) {
                     }
                 }
 
-                // Inject compiled BASIC bytecode payload
-                val binEntry = ZipEntry("assets/program.basic.bin")
-                zos.putNextEntry(binEntry)
-                zos.write(bytecodeBytes)
-                zos.closeEntry()
+                fun safeCopyStream(entryName: String, inputStream: InputStream) {
+                    val clean = entryName.trim().trimStart('/')
+                    if (clean.isEmpty() || seenEntries.contains(clean)) return
+                    seenEntries.add(clean)
+                    try {
+                        val newEntry = ZipEntry(clean)
+                        zos.putNextEntry(newEntry)
+                        var count: Int
+                        while (inputStream.read(buffer).also { count = it } != -1) {
+                            zos.write(buffer, 0, count)
+                        }
+                        zos.closeEntry()
+                    } catch (ignored: Exception) {
+                    }
+                }
 
-                // Inject raw BASIC source payload
-                val srcEntry = ZipEntry("assets/source.bas")
-                zos.putNextEntry(srcEntry)
-                zos.write(sourceBytes)
-                zos.closeEntry()
+                if (installedFile != null) {
+                    ZipFile(installedFile).use { zip ->
+                        val entries = zip.entries()
+                        while (entries.hasMoreElements()) {
+                            val entry = entries.nextElement()
+                            val name = entry.name.trim().trimStart('/')
+
+                            if (name.isEmpty() ||
+                                name == "assets/program.basic.bin" ||
+                                name == "assets/source.bas" ||
+                                name == "assets/runner-base.apk" ||
+                                name.startsWith("META-INF/", ignoreCase = true) ||
+                                seenEntries.contains(name) ||
+                                entry.isDirectory
+                            ) {
+                                continue
+                            }
+
+                            if (name == "AndroidManifest.xml") {
+                                val rawManifest = ByteArrayOutputStream().use { baos ->
+                                    zip.getInputStream(entry).use { `is` -> `is`.copyTo(baos) }
+                                    baos.toByteArray()
+                                }
+                                val modifiedManifest = BinaryXmlModifier.updatePackageAndLabel(
+                                    manifestBytes = rawManifest,
+                                    currentPackageName = currentPackageName,
+                                    newPackageName = packageName,
+                                    newLabel = appName
+                                )
+                                safePutEntry("AndroidManifest.xml", modifiedManifest)
+                                continue
+                            }
+
+                            zip.getInputStream(entry).use { `is` ->
+                                safeCopyStream(name, `is`)
+                            }
+                        }
+                    }
+                } else {
+                    context.assets.open("runner-base.apk").use { rawStream ->
+                        ZipInputStream(BufferedInputStream(rawStream)).use { zis ->
+                            var entry = zis.nextEntry
+                            while (entry != null) {
+                                val name = entry.name.trim().trimStart('/')
+                                if (name.isNotEmpty() &&
+                                    name != "assets/program.basic.bin" &&
+                                    name != "assets/source.bas" &&
+                                    name != "assets/runner-base.apk" &&
+                                    !name.startsWith("META-INF/", ignoreCase = true) &&
+                                    !seenEntries.contains(name) &&
+                                    !entry.isDirectory
+                                ) {
+                                    if (name == "AndroidManifest.xml") {
+                                        val rawManifest = ByteArrayOutputStream().use { baos ->
+                                            zis.copyTo(baos)
+                                            baos.toByteArray()
+                                        }
+                                        val modifiedManifest = BinaryXmlModifier.updatePackageAndLabel(
+                                            manifestBytes = rawManifest,
+                                            currentPackageName = currentPackageName,
+                                            newPackageName = packageName,
+                                            newLabel = appName
+                                        )
+                                        safePutEntry("AndroidManifest.xml", modifiedManifest)
+                                    } else {
+                                        safeCopyStream(name, zis)
+                                    }
+                                }
+                                entry = zis.nextEntry
+                            }
+                        }
+                    }
+                }
+
+                // Inject compiled BASIC payload
+                safePutEntry("assets/program.basic.bin", bytecodeBytes)
+                safePutEntry("assets/source.bas", sourceBytes)
             }
         }
 
-        // Replace target file
-        if (apkFile.exists()) apkFile.delete()
-        tempApkFile.renameTo(apkFile)
+        // Sign with official Android SDK ApkSigner (v1, v2, v3)
+        val signedApkFile = File(appDownloadsDir, "$safeName.signed.apk")
+        if (signedApkFile.exists()) signedApkFile.delete()
+
+        try {
+            val keystoreStream = context.resources.openRawResource(com.example.R.raw.debug_keystore)
+            ApkSignerHelper.signApk(
+                unsignedApk = tempApkFile,
+                signedApk = signedApkFile,
+                keystoreStream = keystoreStream,
+                minSdkVersion = 21
+            )
+
+            tempApkFile.delete()
+            if (apkFile.exists()) apkFile.delete()
+            signedApkFile.renameTo(apkFile)
+        } catch (e: Exception) {
+            tempApkFile.delete()
+            signedApkFile.delete()
+            val causeMsg = e.cause?.message?.let { " (Cause: $it)" } ?: ""
+            throw Exception("Signing stage failed: ${e.message}$causeMsg", e)
+        }
 
         val finalSizeBytes = apkFile.length()
         val sizeFormatted = String.format("%.2f MB", finalSizeBytes / (1024.0 * 1024.0))
 
-        // Copy to public shared Downloads via MediaStore so the user's File Manager finds it immediately
         var publicExported = false
         var displayLocation = apkFile.absolutePath
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             try {
                 val resolver = context.contentResolver
-                // Delete previous entry with the same name if exists in MediaStore
                 val selection = "${MediaStore.Downloads.DISPLAY_NAME} = ?"
                 val selectionArgs = arrayOf(apkFileName)
                 resolver.delete(MediaStore.Downloads.EXTERNAL_CONTENT_URI, selection, selectionArgs)
@@ -202,15 +286,35 @@ object StandaloneApkBuilder {
             }
         }
 
+        val validationReport = ApkSignerHelper.validateApk(apkFile, minTargetSdk = 21)
+
         return ApkExportResult(
             file = apkFile,
             publicPath = displayLocation,
             fileSizeFormatted = sizeFormatted,
-            isMediaStored = publicExported
+            isMediaStored = publicExported,
+            validationReport = validationReport
         )
     }
 
     fun openApkInstaller(context: Context, apkFile: File) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (!context.packageManager.canRequestPackageInstalls()) {
+                try {
+                    val settingsIntent = Intent(
+                        android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:${context.packageName}")
+                    ).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(settingsIntent)
+                    return
+                } catch (e: Exception) {
+                    // Fall through to standard installer
+                }
+            }
+        }
+
         val uri: Uri = FileProvider.getUriForFile(
             context,
             "${context.packageName}.fileprovider",
@@ -221,7 +325,11 @@ object StandaloneApkBuilder {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-        context.startActivity(Intent.createChooser(installIntent, "Open or Install APK"))
+        try {
+            context.startActivity(installIntent)
+        } catch (e: Exception) {
+            context.startActivity(Intent.createChooser(installIntent, "Open or Install APK"))
+        }
     }
 
     fun shareApk(context: Context, apkFile: File) {
