@@ -52,17 +52,26 @@ object ApkSignerHelper {
         signedApk: File,
         keystoreStream: InputStream,
         keystorePass: String = "android",
-        keyAlias: String = "androiddebugkey",
+        keyAlias: String = "standalonekey",
         keyPass: String = "android",
-        minSdkVersion: Int = 21
+        minSdkVersion: Int = 24
     ) {
         val ks = KeyStore.getInstance("PKCS12")
         ks.load(keystoreStream, keystorePass.toCharArray())
-        val privateKey = ks.getKey(keyAlias, keyPass.toCharArray()) as PrivateKey
-        val cert = ks.getCertificate(keyAlias) as X509Certificate
+        val actualAlias = when {
+            ks.containsAlias(keyAlias) -> keyAlias
+            ks.containsAlias("standalonekey") -> "standalonekey"
+            ks.containsAlias("androiddebugkey") -> "androiddebugkey"
+            ks.aliases().hasMoreElements() -> ks.aliases().nextElement()
+            else -> throw IllegalStateException("No key aliases found in keystore")
+        }
+        val privateKey = ks.getKey(actualAlias, keyPass.toCharArray()) as? PrivateKey
+            ?: throw IllegalStateException("Could not extract private key for alias $actualAlias")
+        val cert = ks.getCertificate(actualAlias) as? X509Certificate
+            ?: throw IllegalStateException("Could not extract certificate for alias $actualAlias")
 
         val signerConfig = ApkSigner.SignerConfig.Builder(
-            keyAlias,
+            actualAlias,
             privateKey,
             listOf(cert)
         ).build()

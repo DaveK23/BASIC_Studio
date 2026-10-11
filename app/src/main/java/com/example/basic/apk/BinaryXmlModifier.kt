@@ -175,32 +175,54 @@ object BinaryXmlModifier {
         val remainderOffset = spOffset + spChunkSize
         val remainderBytes = manifestBytes.copyOfRange(remainderOffset, manifestBytes.size)
 
-        // 1. Mutate label attribute values to point directly to labelStringIndex
-        // 2. Patch targetSdkVersion / compileSdkVersion from 36 down to 34 (Android 14)
+        // Parse XML chunks safely so element tags (such as <application> and <activity>) are never corrupted.
+        // Mutate label attribute values to point directly to labelStringIndex
+        // Patch compileSdkVersion / platformBuildVersionCode to stable Android 14 (API 34)
         val rBuf = ByteBuffer.wrap(remainderBytes).order(ByteOrder.LITTLE_ENDIAN)
-        for (pos in 0 until remainderBytes.size - 20 step 4) {
-            val aName = rBuf.getInt(pos + 4)
-            val valData = rBuf.getInt(pos + 16)
+        var chunkPos = 0
+        while (chunkPos + 8 <= remainderBytes.size) {
+            val chunkType = rBuf.getShort(chunkPos).toInt() and 0xFFFF
+            val chunkSize = rBuf.getInt(chunkPos + 4)
+            if (chunkSize <= 0 || chunkPos + chunkSize > remainderBytes.size) break
 
-            if (valData == 0x7f0b0002 && labelStringIndex != -1) { // Old @string/app_name reference
-                rBuf.putInt(pos + 8, labelStringIndex) // rawValue
-                remainderBytes[pos + 15] = 0x03 // dataType = TYPE_STRING
-                rBuf.putInt(pos + 16, labelStringIndex) // data
-            }
+            if (chunkType == 0x0102) { // RES_XML_START_ELEMENT_TYPE
+                val attrStart = rBuf.getShort(chunkPos + 24).toInt() and 0xFFFF
+                val attrSize = rBuf.getShort(chunkPos + 26).toInt() and 0xFFFF
+                val attrCount = rBuf.getShort(chunkPos + 28).toInt() and 0xFFFF
 
-            if (aName in 0 until stringCount) {
-                val nameStr = strings[aName]
-                if (nameStr == "targetSdkVersion" || nameStr == "compileSdkVersion" || nameStr == "platformBuildVersionCode") {
-                    rBuf.putInt(pos + 16, 34) // Android 14 stable target
-                } else if (nameStr == "extractNativeLibs") {
-                    // Ensure native libraries can be extracted by package manager
-                    remainderBytes[pos + 15] = 0x12 // TYPE_INT_BOOLEAN
-                    rBuf.putInt(pos + 16, -1) // 0xFFFFFFFF = true
-                } else if (nameStr == "testOnly") {
-                    remainderBytes[pos + 15] = 0x12
-                    rBuf.putInt(pos + 16, 0) // false
+                val firstAttrPos = chunkPos + 16 + attrStart
+                for (i in 0 until attrCount) {
+                    val attrPos = firstAttrPos + i * attrSize
+                    if (attrPos + 20 > remainderBytes.size) break
+
+                    val aName = rBuf.getInt(attrPos + 4)
+                    val valData = rBuf.getInt(attrPos + 16)
+
+                    if (valData == 0x7f0b0002 && labelStringIndex != -1) { // Old @string/app_name reference
+                        rBuf.putInt(attrPos + 8, labelStringIndex) // rawValue
+                        remainderBytes[attrPos + 15] = 0x03 // dataType = TYPE_STRING
+                        rBuf.putInt(attrPos + 16, labelStringIndex) // data
+                    }
+
+                    if (aName in 0 until stringCount) {
+                        val nameStr = strings[aName]
+                        if (nameStr == "compileSdkVersion" || nameStr == "platformBuildVersionCode") {
+                            rBuf.putInt(attrPos + 16, 34) // Android 14 stable target
+                        } else if (nameStr == "extractNativeLibs") {
+                            remainderBytes[attrPos + 15] = 0x12 // TYPE_INT_BOOLEAN
+                            rBuf.putInt(attrPos + 16, -1) // 0xFFFFFFFF = true
+                        } else if (nameStr == "debuggable") {
+                            remainderBytes[attrPos + 15] = 0x12 // TYPE_INT_BOOLEAN
+                            rBuf.putInt(attrPos + 16, 0) // false
+                        } else if (nameStr == "testOnly") {
+                            remainderBytes[attrPos + 15] = 0x12 // TYPE_INT_BOOLEAN
+                            rBuf.putInt(attrPos + 16, 0) // false
+                        }
+                    }
                 }
             }
+
+            chunkPos += chunkSize
         }
 
         val newTotalSize = 8 + newSpChunkSize + remainderBytes.size

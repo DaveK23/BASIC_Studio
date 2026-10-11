@@ -13,12 +13,13 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
+import java.util.zip.CRC32
 import java.util.zip.ZipEntry
+import java.util.zip.ZipException
 import java.util.zip.ZipFile
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
@@ -28,7 +29,9 @@ data class ApkExportResult(
     val publicPath: String,
     val fileSizeFormatted: String,
     val isMediaStored: Boolean = false,
-    val validationReport: ApkValidationReport? = null
+    val diagnostics: ApkBuildDiagnostics? = null,
+    val validationReport: ApkValidationReport? = null,
+    val alignmentReport: ZipAligner.AlignmentResult? = null
 )
 
 object StandaloneApkBuilder {
@@ -74,9 +77,11 @@ object StandaloneApkBuilder {
     /**
      * Builds a standalone installable Android APK:
      * 1. Extracts binary AndroidManifest.xml and rewrites package and label.
-     * 2. Injects the compiled BASIC bytecode into assets/program.basic.bin.
-     * 3. Signs using official Android SDK ApkSigner with v1, v2, and v3 schemes.
-     * 4. Runs diagnostic verification to report signature status.
+     * 2. Injects compiled BASIC bytecode into assets/program.basic.bin.
+     * 3. Stores resources.arsc uncompressed (ZipEntry.STORED) as required by Android 11+ (API 30+).
+     * 4. Aligns all STORED entries on 4-byte boundaries with pure-Kotlin ZipAligner.
+     * 5. Signs using official Android SDK ApkSigner with authentic v1, v2, and v3 signatures.
+     * 6. Validates alignment and cryptographic signatures to guarantee seamless installation.
      */
     fun buildApk(
         context: Context,
@@ -84,9 +89,24 @@ object StandaloneApkBuilder {
         packageName: String,
         program: BytecodeProgram
     ): ApkExportResult {
-        val safeName = appName.replace(Regex("[^a-zA-Z0-9_]"), "_").lowercase()
+        val safeName = appName.replace(Regex("[^a-zA-Z0-9_]"), "_").lowercase().ifBlank { "basic_app" }
         val apkFileName = "$safeName.apk"
         val currentPackageName = context.packageName
+        val cleanPkg = packageName.trim()
+
+        if (cleanPkg.equals(currentPackageName, ignoreCase = true)) {
+            throw IllegalArgumentException(
+                "Package ID '$cleanPkg' cannot match BASIC Studio's own package name ($currentPackageName). " +
+                "Android prohibits installing conflicting signing certificates over the existing application. " +
+                "Please choose a distinct Package ID such as 'com.basic.$safeName'."
+            )
+        }
+
+        val targetPackageName = if (cleanPkg.contains(".") && cleanPkg.split(".").all { it.matches(Regex("[a-zA-Z0-9_]+")) }) {
+            cleanPkg
+        } else {
+            "com.basic.$safeName"
+        }
 
         val appDownloadsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
         val apkFile = File(appDownloadsDir, apkFileName)
@@ -94,146 +114,54 @@ object StandaloneApkBuilder {
         val bytecodeBytes = serializeBytecode(program)
         val sourceBytes = program.sourceCode.toByteArray(Charsets.UTF_8)
 
-        val tempApkFile = File(appDownloadsDir, "$safeName.tmp.apk")
-        if (tempApkFile.exists()) tempApkFile.delete()
+        val unalignedTempApk = File(appDownloadsDir, "$safeName.unaligned.tmp.apk")
+        val alignedTempApk = File(appDownloadsDir, "$safeName.aligned.tmp.apk")
+        val signedTempApk = File(appDownloadsDir, "$safeName.signed.tmp.apk")
 
-        val seenEntries = mutableSetOf<String>()
-        val installedFile = getBaseApkFile(context)
+        if (unalignedTempApk.exists()) unalignedTempApk.delete()
+        if (alignedTempApk.exists()) alignedTempApk.delete()
+        if (signedTempApk.exists()) signedTempApk.delete()
 
-        BufferedOutputStream(FileOutputStream(tempApkFile)).use { bos ->
-            ZipOutputStream(bos).use { zos ->
-                val buffer = ByteArray(65536)
-
-                fun safePutEntry(entryName: String, data: ByteArray) {
-                    val clean = entryName.trim().trimStart('/')
-                    if (clean.isEmpty() || seenEntries.contains(clean)) return
-                    seenEntries.add(clean)
-                    try {
-                        val newEntry = ZipEntry(clean)
-                        zos.putNextEntry(newEntry)
-                        zos.write(data)
-                        zos.closeEntry()
-                    } catch (ignored: Exception) {
-                    }
-                }
-
-                fun safeCopyStream(entryName: String, inputStream: InputStream) {
-                    val clean = entryName.trim().trimStart('/')
-                    if (clean.isEmpty() || seenEntries.contains(clean)) return
-                    seenEntries.add(clean)
-                    try {
-                        val newEntry = ZipEntry(clean)
-                        zos.putNextEntry(newEntry)
-                        var count: Int
-                        while (inputStream.read(buffer).also { count = it } != -1) {
-                            zos.write(buffer, 0, count)
-                        }
-                        zos.closeEntry()
-                    } catch (ignored: Exception) {
-                    }
-                }
-
-                if (installedFile != null) {
-                    ZipFile(installedFile).use { zip ->
-                        val entries = zip.entries()
-                        while (entries.hasMoreElements()) {
-                            val entry = entries.nextElement()
-                            val name = entry.name.trim().trimStart('/')
-
-                            if (name.isEmpty() ||
-                                name == "assets/program.basic.bin" ||
-                                name == "assets/source.bas" ||
-                                name == "assets/runner-base.apk" ||
-                                name.startsWith("META-INF/", ignoreCase = true) ||
-                                seenEntries.contains(name) ||
-                                entry.isDirectory
-                            ) {
-                                continue
-                            }
-
-                            if (name == "AndroidManifest.xml") {
-                                val rawManifest = ByteArrayOutputStream().use { baos ->
-                                    zip.getInputStream(entry).use { `is` -> `is`.copyTo(baos) }
-                                    baos.toByteArray()
-                                }
-                                val modifiedManifest = BinaryXmlModifier.updatePackageAndLabel(
-                                    manifestBytes = rawManifest,
-                                    currentPackageName = currentPackageName,
-                                    newPackageName = packageName,
-                                    newLabel = appName
-                                )
-                                safePutEntry("AndroidManifest.xml", modifiedManifest)
-                                continue
-                            }
-
-                            zip.getInputStream(entry).use { `is` ->
-                                safeCopyStream(name, `is`)
-                            }
-                        }
-                    }
-                } else {
-                    context.assets.open("runner-base.apk").use { rawStream ->
-                        ZipInputStream(BufferedInputStream(rawStream)).use { zis ->
-                            var entry = zis.nextEntry
-                            while (entry != null) {
-                                val name = entry.name.trim().trimStart('/')
-                                if (name.isNotEmpty() &&
-                                    name != "assets/program.basic.bin" &&
-                                    name != "assets/source.bas" &&
-                                    name != "assets/runner-base.apk" &&
-                                    !name.startsWith("META-INF/", ignoreCase = true) &&
-                                    !seenEntries.contains(name) &&
-                                    !entry.isDirectory
-                                ) {
-                                    if (name == "AndroidManifest.xml") {
-                                        val rawManifest = ByteArrayOutputStream().use { baos ->
-                                            zis.copyTo(baos)
-                                            baos.toByteArray()
-                                        }
-                                        val modifiedManifest = BinaryXmlModifier.updatePackageAndLabel(
-                                            manifestBytes = rawManifest,
-                                            currentPackageName = currentPackageName,
-                                            newPackageName = packageName,
-                                            newLabel = appName
-                                        )
-                                        safePutEntry("AndroidManifest.xml", modifiedManifest)
-                                    } else {
-                                        safeCopyStream(name, zis)
-                                    }
-                                }
-                                entry = zis.nextEntry
-                            }
-                        }
-                    }
-                }
-
-                // Inject compiled BASIC payload
-                safePutEntry("assets/program.basic.bin", bytecodeBytes)
-                safePutEntry("assets/source.bas", sourceBytes)
-            }
-        }
-
-        // Sign with official Android SDK ApkSigner (v1, v2, v3)
-        val signedApkFile = File(appDownloadsDir, "$safeName.signed.apk")
-        if (signedApkFile.exists()) signedApkFile.delete()
-
+        val diagnostics: ApkBuildDiagnostics
         try {
+            // Stage 1: Assemble unsigned archive with uncompressed resources.arsc
+            diagnostics = assembleArchiveWithFallback(
+                context = context,
+                targetZip = unalignedTempApk,
+                appName = appName,
+                currentPackageName = currentPackageName,
+                targetPackageName = targetPackageName,
+                bytecodeBytes = bytecodeBytes,
+                sourceBytes = sourceBytes
+            )
+
+            // Stage 2: ZipAlign 4-byte boundaries on uncompressed entries (Android 11+ requirement)
+            ZipAligner.align(
+                inputFile = unalignedTempApk,
+                outputFile = alignedTempApk,
+                defaultAlignment = 4
+            )
+
+            // Stage 3: Sign using official Android SDK ApkSigner (v1, v2, v3)
             val keystoreStream = context.resources.openRawResource(com.example.R.raw.debug_keystore)
             ApkSignerHelper.signApk(
-                unsignedApk = tempApkFile,
-                signedApk = signedApkFile,
+                unsignedApk = alignedTempApk,
+                signedApk = signedTempApk,
                 keystoreStream = keystoreStream,
                 minSdkVersion = 21
             )
 
-            tempApkFile.delete()
+            // Finalize target APK
             if (apkFile.exists()) apkFile.delete()
-            signedApkFile.renameTo(apkFile)
-        } catch (e: Exception) {
-            tempApkFile.delete()
-            signedApkFile.delete()
-            val causeMsg = e.cause?.message?.let { " (Cause: $it)" } ?: ""
-            throw Exception("Signing stage failed: ${e.message}$causeMsg", e)
+            val renamed = signedTempApk.renameTo(apkFile)
+            if (!renamed) {
+                signedTempApk.copyTo(apkFile, overwrite = true)
+                signedTempApk.delete()
+            }
+        } finally {
+            if (unalignedTempApk.exists()) unalignedTempApk.delete()
+            if (alignedTempApk.exists()) alignedTempApk.delete()
+            if (signedTempApk.exists()) signedTempApk.delete()
         }
 
         val finalSizeBytes = apkFile.length()
@@ -286,6 +214,7 @@ object StandaloneApkBuilder {
             }
         }
 
+        val alignmentReport = ZipAligner.verify(apkFile)
         val validationReport = ApkSignerHelper.validateApk(apkFile, minTargetSdk = 21)
 
         return ApkExportResult(
@@ -293,8 +222,326 @@ object StandaloneApkBuilder {
             publicPath = displayLocation,
             fileSizeFormatted = sizeFormatted,
             isMediaStored = publicExported,
-            validationReport = validationReport
+            diagnostics = diagnostics,
+            validationReport = validationReport,
+            alignmentReport = alignmentReport
         )
+    }
+
+    private fun assembleArchiveWithFallback(
+        context: Context,
+        targetZip: File,
+        appName: String,
+        currentPackageName: String,
+        targetPackageName: String,
+        bytecodeBytes: ByteArray,
+        sourceBytes: ByteArray
+    ): ApkBuildDiagnostics {
+        var assetError: Throwable? = null
+
+        // Primary Attempt: Asset template (runner-base.apk)
+        try {
+            val collector = ApkBuildDiagnosticsCollector(baseSource = "Asset (runner-base.apk)")
+            assembleFromAssetStream(
+                context = context,
+                targetZip = targetZip,
+                appName = appName,
+                currentPackageName = currentPackageName,
+                targetPackageName = targetPackageName,
+                bytecodeBytes = bytecodeBytes,
+                sourceBytes = sourceBytes,
+                diagnostics = collector
+            )
+            return collector.build()
+        } catch (e: Throwable) {
+            assetError = e
+            if (targetZip.exists()) {
+                targetZip.delete()
+            }
+        }
+
+        // Secondary Attempt: Installed host APK fallback
+        val installedFile = getBaseApkFile(context)
+        if (installedFile != null) {
+            try {
+                val collector = ApkBuildDiagnosticsCollector(baseSource = "Installed APK (${installedFile.name})")
+                assembleFromZipFile(
+                    sourceFile = installedFile,
+                    targetZip = targetZip,
+                    appName = appName,
+                    currentPackageName = currentPackageName,
+                    targetPackageName = targetPackageName,
+                    bytecodeBytes = bytecodeBytes,
+                    sourceBytes = sourceBytes,
+                    diagnostics = collector
+                )
+                return collector.build()
+            } catch (installedError: Throwable) {
+                if (targetZip.exists()) {
+                    targetZip.delete()
+                }
+                val assetMsg = assetError?.message ?: "unknown"
+                val instMsg = installedError.message ?: "unknown"
+                throw Exception("Archive packaging failed on both asset ($assetMsg) and installed APK ($instMsg)", installedError)
+            }
+        }
+
+        throw Exception("Archive packaging from asset failed: ${assetError?.message ?: "unknown asset error"}", assetError)
+    }
+
+    private fun assembleFromAssetStream(
+        context: Context,
+        targetZip: File,
+        appName: String,
+        currentPackageName: String,
+        targetPackageName: String,
+        bytecodeBytes: ByteArray,
+        sourceBytes: ByteArray,
+        diagnostics: ApkBuildDiagnosticsCollector
+    ) {
+        val registry = CaseInsensitiveEntryRegistry()
+
+        BufferedOutputStream(FileOutputStream(targetZip)).use { bos ->
+            ZipOutputStream(bos).use { zos ->
+                context.assets.open("runner-base.apk").use { rawStream ->
+                    ZipInputStream(BufferedInputStream(rawStream)).use { zis ->
+                        var entry = zis.nextEntry
+                        while (entry != null) {
+                            diagnostics.recordScanned()
+                            val rawName = entry.name
+                            val isDir = entry.isDirectory
+
+                            if (registry.shouldFilterOut(rawName, isDir)) {
+                                diagnostics.recordFiltered()
+                                zis.closeEntry()
+                                entry = zis.nextEntry
+                                continue
+                            }
+
+                            val normalized = CaseInsensitiveEntryRegistry.normalize(rawName)
+                            if (!registry.tryRegister(normalized)) {
+                                diagnostics.recordDuplicate(normalized)
+                                zis.closeEntry()
+                                entry = zis.nextEntry
+                                continue
+                            }
+
+                            val shouldStoreUncompressed = normalized.equals("resources.arsc", ignoreCase = true) ||
+                                    (entry.method == ZipEntry.STORED)
+
+                            if (normalized.equals("AndroidManifest.xml", ignoreCase = true)) {
+                                val rawManifest = zis.readBytes()
+                                val modifiedManifest = BinaryXmlModifier.updatePackageAndLabel(
+                                    manifestBytes = rawManifest,
+                                    currentPackageName = currentPackageName,
+                                    newPackageName = targetPackageName,
+                                    newLabel = appName
+                                )
+                                writeEntry(zos, "AndroidManifest.xml", modifiedManifest, isStored = false, diagnostics = diagnostics)
+                            } else if (shouldStoreUncompressed) {
+                                val rawBytes = zis.readBytes()
+                                writeEntry(zos, normalized, rawBytes, isStored = true, diagnostics = diagnostics)
+                            } else {
+                                writeDeflatedFromZis(zos, normalized, zis, diagnostics)
+                            }
+
+                            zis.closeEntry()
+                            entry = zis.nextEntry
+                        }
+                    }
+                }
+
+                // Inject compiled BASIC payload (compressed)
+                injectPayload(zos, registry, bytecodeBytes, sourceBytes, diagnostics)
+            }
+        }
+    }
+
+    private fun assembleFromZipFile(
+        sourceFile: File,
+        targetZip: File,
+        appName: String,
+        currentPackageName: String,
+        targetPackageName: String,
+        bytecodeBytes: ByteArray,
+        sourceBytes: ByteArray,
+        diagnostics: ApkBuildDiagnosticsCollector
+    ) {
+        val registry = CaseInsensitiveEntryRegistry()
+
+        BufferedOutputStream(FileOutputStream(targetZip)).use { bos ->
+            ZipOutputStream(bos).use { zos ->
+                ZipFile(sourceFile).use { zip ->
+                    val entries = zip.entries()
+                    while (entries.hasMoreElements()) {
+                        val entry = entries.nextElement()
+                        diagnostics.recordScanned()
+                        val rawName = entry.name
+                        val isDir = entry.isDirectory
+
+                        if (registry.shouldFilterOut(rawName, isDir)) {
+                            diagnostics.recordFiltered()
+                            continue
+                        }
+
+                        val normalized = CaseInsensitiveEntryRegistry.normalize(rawName)
+                        if (!registry.tryRegister(normalized)) {
+                            diagnostics.recordDuplicate(normalized)
+                            continue
+                        }
+
+                        val shouldStoreUncompressed = normalized.equals("resources.arsc", ignoreCase = true) ||
+                                (entry.method == ZipEntry.STORED)
+
+                        if (normalized.equals("AndroidManifest.xml", ignoreCase = true)) {
+                            val rawManifest = zip.getInputStream(entry).use { it.readBytes() }
+                            val modifiedManifest = BinaryXmlModifier.updatePackageAndLabel(
+                                manifestBytes = rawManifest,
+                                currentPackageName = currentPackageName,
+                                newPackageName = targetPackageName,
+                                newLabel = appName
+                            )
+                            writeEntry(zos, "AndroidManifest.xml", modifiedManifest, isStored = false, diagnostics = diagnostics)
+                        } else if (shouldStoreUncompressed) {
+                            val rawBytes = zip.getInputStream(entry).use { it.readBytes() }
+                            writeEntry(zos, normalized, rawBytes, isStored = true, diagnostics = diagnostics)
+                        } else {
+                            zip.getInputStream(entry).use { inputStream ->
+                                writeDeflatedFromStream(zos, normalized, inputStream, diagnostics)
+                            }
+                        }
+                    }
+                }
+
+                // Inject compiled BASIC payload (compressed)
+                injectPayload(zos, registry, bytecodeBytes, sourceBytes, diagnostics)
+            }
+        }
+    }
+
+    private fun injectPayload(
+        zos: ZipOutputStream,
+        registry: CaseInsensitiveEntryRegistry,
+        bytecodeBytes: ByteArray,
+        sourceBytes: ByteArray,
+        diagnostics: ApkBuildDiagnosticsCollector
+    ) {
+        if (registry.tryRegister("assets/program.basic.bin")) {
+            writeEntry(zos, "assets/program.basic.bin", bytecodeBytes, isStored = false, diagnostics = diagnostics)
+        }
+        if (registry.tryRegister("assets/source.bas")) {
+            writeEntry(zos, "assets/source.bas", sourceBytes, isStored = false, diagnostics = diagnostics)
+        }
+    }
+
+    private fun writeEntry(
+        zos: ZipOutputStream,
+        entryName: String,
+        data: ByteArray,
+        isStored: Boolean,
+        diagnostics: ApkBuildDiagnosticsCollector
+    ) {
+        val cleanName = CaseInsensitiveEntryRegistry.normalize(entryName)
+        if (cleanName.isEmpty()) {
+            diagnostics.recordError("Rejected empty entry name")
+            return
+        }
+
+        try {
+            val entry = ZipEntry(cleanName).apply {
+                time = 0L
+                if (isStored) {
+                    method = ZipEntry.STORED
+                    size = data.size.toLong()
+                    compressedSize = data.size.toLong()
+                    val crc = CRC32().apply { update(data) }.value
+                    setCrc(crc)
+                } else {
+                    method = ZipEntry.DEFLATED
+                }
+            }
+            zos.putNextEntry(entry)
+            try {
+                zos.write(data)
+            } finally {
+                zos.closeEntry()
+            }
+            diagnostics.recordWritten(cleanName)
+        } catch (e: Exception) {
+            val errorMsg = "Archive write error on entry '$cleanName' (${data.size} bytes, stored=$isStored): ${e.message}"
+            diagnostics.recordError(errorMsg)
+            throw ZipException(errorMsg).apply { initCause(e) }
+        }
+    }
+
+    private fun writeDeflatedFromZis(
+        zos: ZipOutputStream,
+        entryName: String,
+        zis: ZipInputStream,
+        diagnostics: ApkBuildDiagnosticsCollector
+    ) {
+        val cleanName = CaseInsensitiveEntryRegistry.normalize(entryName)
+        if (cleanName.isEmpty()) {
+            diagnostics.recordError("Rejected empty entry name from ZipInputStream")
+            return
+        }
+
+        try {
+            val entry = ZipEntry(cleanName).apply {
+                time = 0L
+                method = ZipEntry.DEFLATED
+            }
+            zos.putNextEntry(entry)
+            val buffer = ByteArray(65536)
+            var count: Int
+            try {
+                while (zis.read(buffer).also { count = it } != -1) {
+                    zos.write(buffer, 0, count)
+                }
+            } finally {
+                zos.closeEntry()
+            }
+            diagnostics.recordWritten(cleanName)
+        } catch (e: Exception) {
+            val errorMsg = "Archive copy error on entry '$cleanName': ${e.message}"
+            diagnostics.recordError(errorMsg)
+            throw ZipException(errorMsg).apply { initCause(e) }
+        }
+    }
+
+    private fun writeDeflatedFromStream(
+        zos: ZipOutputStream,
+        entryName: String,
+        inputStream: InputStream,
+        diagnostics: ApkBuildDiagnosticsCollector
+    ) {
+        val cleanName = CaseInsensitiveEntryRegistry.normalize(entryName)
+        if (cleanName.isEmpty()) {
+            diagnostics.recordError("Rejected empty entry name from InputStream")
+            return
+        }
+
+        try {
+            val entry = ZipEntry(cleanName).apply {
+                time = 0L
+                method = ZipEntry.DEFLATED
+            }
+            zos.putNextEntry(entry)
+            val buffer = ByteArray(65536)
+            var count: Int
+            try {
+                while (inputStream.read(buffer).also { count = it } != -1) {
+                    zos.write(buffer, 0, count)
+                }
+            } finally {
+                zos.closeEntry()
+            }
+            diagnostics.recordWritten(cleanName)
+        } catch (e: Exception) {
+            val errorMsg = "Archive stream error on entry '$cleanName': ${e.message}"
+            diagnostics.recordError(errorMsg)
+            throw ZipException(errorMsg).apply { initCause(e) }
+        }
     }
 
     fun openApkInstaller(context: Context, apkFile: File) {

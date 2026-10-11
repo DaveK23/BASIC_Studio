@@ -1,9 +1,12 @@
 package com.example.basic.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -998,8 +1002,10 @@ fun ExportApkDialog(
     onDismiss: () -> Unit,
     monoFont: FontFamily
 ) {
+    val context = LocalContext.current
     var appName by remember { mutableStateOf("MyBasicApp") }
     var packageName by remember { mutableStateOf("com.basic.mybasicapp") }
+    val isConflictingPackage = packageName.trim().equals(context.packageName, ignoreCase = true)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1013,7 +1019,7 @@ fun ExportApkDialog(
         text = {
             Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "Compiles the active BASIC code into bytecode and packages an installable Android APK with binary manifest and Dalvik runtime.",
+                    text = "Compiles the active BASIC code into bytecode and packages an installable Android APK with binary manifest, 4-byte zip alignment, and official v1/v2/v3 signatures.",
                     color = Color(0xFF94A3B8),
                     fontSize = 12.sp
                 )
@@ -1027,14 +1033,26 @@ fun ExportApkDialog(
                     modifier = Modifier.fillMaxWidth().testTag("apk_name_field")
                 )
 
-                OutlinedTextField(
-                    value = packageName,
-                    onValueChange = { packageName = it },
-                    label = { Text("Package ID (e.g. com.app.basic)") },
-                    textStyle = TextStyle(color = Color.White, fontFamily = monoFont),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().testTag("apk_package_field")
-                )
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = packageName,
+                        onValueChange = { packageName = it },
+                        label = { Text("Package ID (e.g. com.app.basic)") },
+                        textStyle = TextStyle(color = Color.White, fontFamily = monoFont),
+                        isError = isConflictingPackage,
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("apk_package_field")
+                    )
+                    if (isConflictingPackage) {
+                        Text(
+                            text = "Cannot use host app's ID (${context.packageName}). Android rejects conflicting signatures. Use e.g. com.basic.myapp.",
+                            color = Color(0xFFEF4444),
+                            fontSize = 10.sp,
+                            fontFamily = monoFont,
+                            modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                        )
+                    }
+                }
 
                 if (isBuilding) {
                     Row(
@@ -1049,19 +1067,32 @@ fun ExportApkDialog(
                 }
 
                 if (exportResult != null) {
+                    val isError = exportResult.startsWith("Build error") ||
+                            exportResult.startsWith("Compilation failed") ||
+                            exportResult.contains("failed", ignoreCase = true)
+                    val cardBg = if (isError) Color(0xFF450A0A) else Color(0xFF064E3B)
+                    val textCol = if (isError) Color(0xFFFCA5A5) else Color(0xFF6EE7B7)
+                    val borderCol = if (isError) Color(0xFFEF4444) else Color(0xFF10B981)
+
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF064E3B)),
+                        colors = CardDefaults.cardColors(containerColor = cardBg),
+                        border = BorderStroke(1.dp, borderCol),
                         modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
                     ) {
-                        Column(modifier = Modifier.padding(8.dp)) {
+                        Column(
+                            modifier = Modifier
+                                .padding(10.dp)
+                                .heightIn(max = 240.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
                             Text(
                                 text = exportResult,
-                                color = Color(0xFF6EE7B7),
+                                color = textCol,
                                 fontFamily = monoFont,
                                 fontSize = 11.sp
                             )
 
-                            if (apkFile != null && apkFile.exists()) {
+                            if (apkFile != null && apkFile.exists() && !isError) {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -1085,6 +1116,13 @@ fun ExportApkDialog(
                                         Text("Share / Save", color = TerminalCyan, fontSize = 11.sp, fontFamily = monoFont)
                                     }
                                 }
+                                Text(
+                                    text = "Tip: If a prior version of this app is installed with a conflicting signature, uninstall it first.",
+                                    color = Color(0xFF94A3B8),
+                                    fontSize = 10.sp,
+                                    fontFamily = monoFont,
+                                    modifier = Modifier.padding(top = 6.dp)
+                                )
                             }
                         }
                     }
@@ -1094,7 +1132,7 @@ fun ExportApkDialog(
         confirmButton = {
             OutlinedButton(
                 onClick = { onExport(appName, packageName) },
-                enabled = !isBuilding,
+                enabled = !isBuilding && !isConflictingPackage && packageName.isNotBlank() && appName.isNotBlank(),
                 modifier = Modifier.testTag("build_apk_confirm_button")
             ) {
                 Text("Compile & Build APK", fontFamily = monoFont, color = TerminalGreen)

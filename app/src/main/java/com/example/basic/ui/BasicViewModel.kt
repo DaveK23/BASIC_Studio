@@ -213,13 +213,19 @@ class BasicViewModel : ViewModel() {
                     _isApkBuilding.value = false
                     _lastExportedApk.value = exportRes.file
                     val reportStr = exportRes.validationReport?.summary() ?: "Validation not available"
-                    _apkExportResult.value = "Success! Standalone APK (${exportRes.fileSizeFormatted}) saved to:\n${exportRes.publicPath}\n\nExact file path:\n${exportRes.file.absolutePath}\n\n--- Diagnostic Verification Report ---\n$reportStr"
+                    val diagStr = exportRes.diagnostics?.summary() ?: "Diagnostics not available"
+                    val alignStr = exportRes.alignmentReport?.summary() ?: "Alignment not checked"
+                    _apkExportResult.value = "Success! Standalone APK (${exportRes.fileSizeFormatted}) saved to:\n${exportRes.publicPath}\n\nExact file path:\n${exportRes.file.absolutePath}\n\n--- Packaging Diagnostics ---\n$diagStr\n\n--- Zip Alignment (Android 11+ Ready) ---\n$alignStr\n\n--- Signature Verification ---\n$reportStr"
                 }
             } catch (e: Throwable) {
                 withContext(Dispatchers.Main) {
                     _isApkBuilding.value = false
-                    val trace = e.stackTrace.take(3).joinToString("\n") { "  at ${it.className}.${it.methodName}(${it.fileName}:${it.lineNumber})" }
-                    _apkExportResult.value = "Build error: ${e.javaClass.simpleName}: ${e.message}\n$trace"
+                    val trace = e.stackTrace.take(4).joinToString("\n") { "  at ${it.className}.${it.methodName}(${it.fileName}:${it.lineNumber})" }
+                    val rootCause = generateSequence(e) { it.cause }.last()
+                    val causeInfo = if (rootCause != e && !rootCause.message.isNullOrBlank()) {
+                        "\nRoot Cause: ${rootCause.javaClass.simpleName}: ${rootCause.message}"
+                    } else ""
+                    _apkExportResult.value = "Build error: ${e.javaClass.simpleName}: ${e.message ?: "Unknown packaging failure"}$causeInfo\n\nStack trace:\n$trace"
                 }
             }
         }

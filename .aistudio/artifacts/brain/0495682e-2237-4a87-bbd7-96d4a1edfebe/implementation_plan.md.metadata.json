@@ -1,0 +1,6 @@
+{
+  "summary":  "Comprehensive plan to diagnose and resolve the 'build error: duplicate entry:' bug during standalone APK generation, implementing case-insensitive archive deduplication, clean stream recovery, and transparent in-app build diagnostics.",
+  "updatedAt":  "2026-10-11T08:15:16.604407192Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}
