@@ -197,6 +197,16 @@ class BasicCompiler {
 
             var endsWithSeparator = false
             while (!isAtEnd() && peek().type != TokenType.NEWLINE && peek().type != TokenType.COLON && peek().type != TokenType.ELSE) {
+                if (match(TokenType.SEMICOLON)) {
+                    endsWithSeparator = true
+                    continue
+                }
+                if (match(TokenType.COMMA)) {
+                    emit(OpCode.PRINT_COMMA, sourceLine = sourceLine, sourceLineNum = basicLineNum ?: -1)
+                    endsWithSeparator = true
+                    continue
+                }
+
                 parseExpression(sourceLine)
                 if (match(TokenType.SEMICOLON)) {
                     emit(OpCode.PRINT_SEMI, sourceLine = sourceLine, sourceLineNum = basicLineNum ?: -1)
@@ -211,7 +221,7 @@ class BasicCompiler {
                 }
             }
 
-            if (endsWithSeparator && (peek().type == TokenType.NEWLINE || peek().type == TokenType.COLON || isAtEnd())) {
+            if (endsWithSeparator && (peek().type == TokenType.NEWLINE || peek().type == TokenType.COLON || peek().type == TokenType.ELSE || isAtEnd())) {
                 // suppressed newline
             } else if (!endsWithSeparator && instructions.lastOrNull()?.op != OpCode.PRINT) {
                 emit(OpCode.PRINT_NEWLINE, sourceLine = sourceLine, sourceLineNum = basicLineNum ?: -1)

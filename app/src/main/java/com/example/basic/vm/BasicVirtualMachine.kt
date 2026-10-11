@@ -28,15 +28,133 @@ enum class VmState {
 }
 
 /**
- * Terminal output line or segment with formatting color.
+ * Styled text segment within a terminal line.
+ */
+data class TerminalSpan(
+    val text: String,
+    val colorIndex: Int = 0,
+    val isInputEcho: Boolean = false,
+    val isSystemNotice: Boolean = false,
+    val isError: Boolean = false
+)
+
+/**
+ * Terminal output line composed of one or more styled segments.
  */
 data class TerminalLine(
     val text: String,
     val colorIndex: Int = 0, // 0 = default terminal green/cyan, 1-15 classic color palette
     val isInputEcho: Boolean = false,
     val isSystemNotice: Boolean = false,
-    val isError: Boolean = false
-)
+    val isError: Boolean = false,
+    val spans: List<TerminalSpan> = emptyList(),
+    val endsWithNewline: Boolean = text.endsWith("\n")
+) {
+    companion object {
+        fun appendChunk(
+            current: List<TerminalLine>,
+            chunk: TerminalLine
+        ): List<TerminalLine> {
+            if (chunk.text.isEmpty()) return current
+
+            val result = current.toMutableList()
+            val text = chunk.text
+            var i = 0
+
+            while (i < text.length) {
+                val nextNewline = text.indexOf('\n', i)
+                if (nextNewline == -1) {
+                    val segment = text.substring(i)
+                    if (segment.isNotEmpty()) {
+                        appendSegment(result, segment, chunk, terminatesLine = false)
+                    }
+                    break
+                } else {
+                    val segment = text.substring(i, nextNewline)
+                    appendSegment(result, segment, chunk, terminatesLine = true)
+                    i = nextNewline + 1
+                }
+            }
+
+            return result
+        }
+
+        private fun appendSegment(
+            result: MutableList<TerminalLine>,
+            segment: String,
+            chunk: TerminalLine,
+            terminatesLine: Boolean
+        ) {
+            val hasOpenLine = result.isNotEmpty() && !result.last().endsWithNewline
+
+            if (hasOpenLine) {
+                val lastLine = result.removeAt(result.size - 1)
+                if (segment.isNotEmpty()) {
+                    val existingSpans = if (lastLine.spans.isNotEmpty()) {
+                        lastLine.spans
+                    } else {
+                        listOf(
+                            TerminalSpan(
+                                text = lastLine.text,
+                                colorIndex = lastLine.colorIndex,
+                                isInputEcho = lastLine.isInputEcho,
+                                isSystemNotice = lastLine.isSystemNotice,
+                                isError = lastLine.isError
+                            )
+                        )
+                    }
+                    val newSpan = TerminalSpan(
+                        text = segment,
+                        colorIndex = chunk.colorIndex,
+                        isInputEcho = chunk.isInputEcho,
+                        isSystemNotice = chunk.isSystemNotice,
+                        isError = chunk.isError
+                    )
+                    val updated = lastLine.copy(
+                        text = lastLine.text + segment,
+                        spans = existingSpans + newSpan,
+                        endsWithNewline = terminatesLine
+                    )
+                    result.add(updated)
+                } else if (terminatesLine) {
+                    val updated = lastLine.copy(endsWithNewline = true)
+                    result.add(updated)
+                }
+            } else {
+                if (segment.isNotEmpty()) {
+                    val span = TerminalSpan(
+                        text = segment,
+                        colorIndex = chunk.colorIndex,
+                        isInputEcho = chunk.isInputEcho,
+                        isSystemNotice = chunk.isSystemNotice,
+                        isError = chunk.isError
+                    )
+                    val newLine = TerminalLine(
+                        text = segment,
+                        colorIndex = chunk.colorIndex,
+                        isInputEcho = chunk.isInputEcho,
+                        isSystemNotice = chunk.isSystemNotice,
+                        isError = chunk.isError,
+                        spans = listOf(span),
+                        endsWithNewline = terminatesLine
+                    )
+                    result.add(newLine)
+                } else if (terminatesLine) {
+                    val newLine = TerminalLine(
+                        text = "",
+                        colorIndex = chunk.colorIndex,
+                        isInputEcho = chunk.isInputEcho,
+                        isSystemNotice = chunk.isSystemNotice,
+                        isError = chunk.isError,
+                        spans = emptyList(),
+                        endsWithNewline = true
+                    )
+                    result.add(newLine)
+                }
+            }
+        }
+    }
+}
 
 /**
  * Stack frame for GOSUB / RETURN
@@ -51,12 +169,12 @@ data class CallFrame(
  * step execution, breakpoints, variable inspection, and terminal I/O.
  */
 class BasicVirtualMachine(
-    private val onOutput: (TerminalLine) -> Unit,
-    private val onStateChange: (VmState) -> Unit,
-    private val onVariablesChanged: (Map<String, BasicValue>) -> Unit,
-    private val onIpChanged: (currentIp: Int, sourceLine: Int) -> Unit,
-    private val onClearScreen: () -> Unit,
-    private val onBeep: () -> Unit
+    private val onOutput: (TerminalLine) -> Unit = {},
+    private val onStateChange: (VmState) -> Unit = {},
+    private val onVariablesChanged: (Map<String, BasicValue>) -> Unit = {},
+    private val onIpChanged: (currentIp: Int, sourceLine: Int) -> Unit = { _, _ -> },
+    private val onClearScreen: () -> Unit = {},
+    private val onBeep: () -> Unit = {}
 ) {
     var program: BytecodeProgram? = null
         private set

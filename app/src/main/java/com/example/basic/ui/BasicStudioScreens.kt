@@ -89,8 +89,11 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -642,18 +645,38 @@ fun TerminalScreen(
                 .testTag("terminal_output_list")
         ) {
             items(terminalOutput) { line ->
-                val color = when {
-                    line.isError -> Color(0xFFEF4444)
-                    line.isSystemNotice -> TerminalCyan
-                    line.isInputEcho -> Color(0xFFFBBF24)
-                    line.colorIndex in RetroPalette.indices -> RetroPalette[line.colorIndex]
-                    else -> TerminalGreen
+                val annotatedString = buildAnnotatedString {
+                    if (line.spans.isNotEmpty()) {
+                        for (span in line.spans) {
+                            val spanColor = when {
+                                span.isError -> Color(0xFFEF4444)
+                                span.isSystemNotice -> TerminalCyan
+                                span.isInputEcho -> Color(0xFFFBBF24)
+                                span.colorIndex in RetroPalette.indices -> RetroPalette[span.colorIndex]
+                                else -> TerminalGreen
+                            }
+                            withStyle(SpanStyle(color = spanColor)) {
+                                append(span.text.trimEnd('\r', '\n'))
+                            }
+                        }
+                    } else {
+                        val color = when {
+                            line.isError -> Color(0xFFEF4444)
+                            line.isSystemNotice -> TerminalCyan
+                            line.isInputEcho -> Color(0xFFFBBF24)
+                            line.colorIndex in RetroPalette.indices -> RetroPalette[line.colorIndex]
+                            else -> TerminalGreen
+                        }
+                        withStyle(SpanStyle(color = color)) {
+                            append(line.text.trimEnd('\r', '\n'))
+                        }
+                    }
                 }
+                val displayText = if (annotatedString.isEmpty()) AnnotatedString(" ") else annotatedString
                 Text(
-                    text = line.text,
+                    text = displayText,
                     fontFamily = monoFont,
-                    fontSize = 13.sp,
-                    color = color
+                    fontSize = 13.sp
                 )
             }
         }

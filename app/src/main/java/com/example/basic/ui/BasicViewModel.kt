@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -82,7 +83,9 @@ class BasicViewModel : ViewModel() {
 
     val vm: BasicVirtualMachine = BasicVirtualMachine(
         onOutput = { line ->
-            _terminalOutput.value = _terminalOutput.value + line
+            _terminalOutput.update { current ->
+                TerminalLine.appendChunk(current, line)
+            }
         },
         onStateChange = { state ->
             _uiState.value = _uiState.value.copy(vmState = state)
@@ -123,8 +126,8 @@ class BasicViewModel : ViewModel() {
     fun runProgram() {
         if (!compileCurrentCode()) return
         _terminalOutput.value = listOf(
-            TerminalLine("READY.", colorIndex = 0),
-            TerminalLine("RUN\n", colorIndex = 0)
+            TerminalLine("READY.", colorIndex = 0, endsWithNewline = true),
+            TerminalLine("RUN", colorIndex = 0, endsWithNewline = true)
         )
         viewModelScope.launch(Dispatchers.Default) {
             vm.execute(debug = false)
@@ -134,8 +137,8 @@ class BasicViewModel : ViewModel() {
     fun startDebugging() {
         if (!compileCurrentCode()) return
         _terminalOutput.value = listOf(
-            TerminalLine("*** DEBUGGER ATTACHED ***", colorIndex = 11, isSystemNotice = true),
-            TerminalLine("Step execution and live watch enabled.\n", colorIndex = 8, isSystemNotice = true)
+            TerminalLine("*** DEBUGGER ATTACHED ***", colorIndex = 11, isSystemNotice = true, endsWithNewline = true),
+            TerminalLine("Step execution and live watch enabled.", colorIndex = 8, isSystemNotice = true, endsWithNewline = true)
         )
         viewModelScope.launch(Dispatchers.Default) {
             vm.execute(debug = true)
