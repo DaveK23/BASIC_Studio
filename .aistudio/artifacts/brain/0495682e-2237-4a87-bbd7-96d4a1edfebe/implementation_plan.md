@@ -1,146 +1,124 @@
-# Retro Graphics, Sound Synth, Sprites & Custom Launcher Icons Plan
+# BASIC Interpreter Execution Control Toolbar Plan
 
-Implementation plan to expand the BASIC IDE and Standalone APK Runner with:
-1. **Graphics Modes & Canvas Engine**: 320x200 retro virtual framebuffer with SCREEN, PSET, LINE, RECT, CIRCLE, and CLS.
-2. **8-Bit Sound Synthesizer**: Real-time waveform audio engine (Square, Triangle, Sawtooth, Sine, Noise) supporting `SOUND freq, duration, type`, `PLAY "MML"`, and retro sound effects (`SFX preset`).
-3. **Hardware Sprite Engine**: 8x8 and 16x16 multi-color sprites with `SPRITEDEF`, `SPRITE id, x, y, pat, color`, `SPRITEMOVE`, and hardware `SPRITEHIT(id1, id2)` collision detection.
-4. **Custom Launcher Icons for Exported Apps**: Visual icon picker in the Export dialog featuring 8 curated retro computing & arcade icons, complete with binary APK packaging and dynamic manifest/resource injection.
-
----
+A dedicated, persistent execution control toolbar featuring **Step**, **Pause**, and **Stop** controls docked directly above the navigation tabs, enabling users to inspect and steer BASIC program flow seamlessly across the code editor, terminal, graphics canvas, and debugger.
 
 ## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> The architectural direction has been aligned with your preferences:
-> - **Graphics Architecture**: 320x200 pixel virtual screen buffer with aspect-ratio scaling and integer-pixel rasterization.
-> - **Sound Synthesis**: Real-time 8-bit audio synthesis via Android `AudioTrack` with 5 waveforms and sound effect triggers.
-> - **Sprite System**: Hardware-style 8x8 & 16x16 pixel sprites with pattern definitions, positioning, flipping, and bounding box / pixel collision detection.
-> - **Launcher Icons**: A selector with 8 default pixel/retro computing icons (BASIC Terminal, 8-Bit Floppy, Microchip, Retro Computer, Space Invader, Arcade Joystick, Diamond Pixel, and 8-Bit Cassette).
+> The following architectural decisions were confirmed via Phase 1 clarification:
+> - **Toolbar Placement**: Dedicated execution control bar docked above the bottom navigation tabs, remaining readily accessible across all active tabs (Editor, Terminal, Debugger, Bytecode).
+> - **Stepping Granularity**: Step by source code line — pressing **Step** executes all underlying bytecode instructions until the interpreter reaches the next source line or completes execution.
+> - **Pause Behavior**: Pressing **Pause** halts execution cooperatively, updates variables and instruction pointers, and automatically switches active view to the **Debugger** tab for immediate inspection.
 
 ---
 
 ## 1. Overview & Core Concept
 
-- **What It Does**: Transforms the BASIC studio and standalone runner from a purely text/terminal environment into a full retro 80s microcomputer platform capable of running graphical games, demos, chiptunes, and utilities.
-- **Standalone Runner Integration**: Both the interactive IDE (in-app test runner) and the exported APK runner (`RuntimeActivity`) seamlessly run the exact same bytecode with full graphics, sound, and sprites.
-- **Export Customization**: When exporting an APK, users can pick from 8 bespoke retro app launcher icons, select the app name and package ID, and produce a signed, zip-aligned standalone APK ready for installation on any Android device.
+- **What It Does**: Provides live playback and stepping controls for the embedded BASIC interpreter. Users can start, single-step line-by-line, pause at any moment to inspect memory/variables in the debugger, resume execution, or abort safely.
+- **Target Audience / Persona**: Developers, retro computing enthusiasts, and students writing games and algorithms who need fine-grained debugging and control over long-running loops or animations.
+- **Key Value**: Replaces clumsy all-or-nothing execution with interactive execution control. Eliminates the need to switch tabs or guess where an infinite loop is hanging.
 
 ---
 
 ## 2. User Experience & Visual Design
 
 ### Key User Flows
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│ 1. Code Editor / Presets                                               │
-│    - Select or write BASIC code utilizing SCREEN, PSET, SPRITE, SOUND  │
-│    - New sample programs included: "Retro Invader", "Sound Chiptune"   │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │ Tap RUN
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│ 2. Dual Canvas & Terminal Screen (or Fullscreen Game Mode)             │
-│    - SCREEN 0: Classic 80x25 text terminal                             │
-│    - SCREEN 1: 320x200 Retro CRT Canvas with scanline effect & sprites │
-│    - Audio plays in background via low-latency AudioTrack synth        │
-│    - Live interactive touch / d-pad controls for sprites & input       │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │ Tap Export APK
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│ 3. Enhanced APK Export Modal                                           │
-│    - App Name & Package ID inputs                                      │
-│    - 8-Icon Visual Grid Selector (Interactive preview cards)           │
-│    - One-click build: injects bytecode + selected icon into signed APK │
-│    - Direct "Install APK" and "Share APK" buttons                      │
-└────────────────────────────────────────────────────────────────────────┘
-```
+1. **Normal Run to Pause**:
+   - User writes or runs a BASIC loop (e.g. game animation or sorting algorithm).
+   - In the execution toolbar, user taps **Pause** (amber button).
+   - Execution yields immediately, the app auto-switches to the **Debugger** tab, and highlights the current executing line and variables.
+2. **Line Stepping from Zero State / Pause**:
+   - User taps **Step** (cyan button) from IDLE, PAUSED, or RUNNING state.
+   - If program is not running, it compiles and steps through the first executable line.
+   - If paused, it executes until the next distinct source line, updating the highlighted line in both the Editor and Debugger watch tables.
+3. **Resume / Continue**:
+   - While paused, the toolbar highlights a **Resume** action (or Play toggle) allowing the user to continue full-speed execution.
+4. **Immediate Stop**:
+   - User taps **Stop** (crimson button) to cancel pending inputs, audio playback, or active execution, returning the system to `TERMINATED` / `IDLE` state.
 
 ### Visual Identity & Theme
-- **Retro Aesthetic**: Deep midnight background (`#0D1117`), phosphorescent CRT green (`#10B981`), amber warning accents (`#F59E0B`), and cyan system telemetry (`#06B6D4`).
-- **Canvas View**: 320x200 pixel display rendered within Compose `Canvas` preserving exact 16:10 or 4:3 aspect ratio, framed by a retro monitor bezel.
-- **Icon Selector**: 4x2 grid of preview cards with retro pixel art representations, gold selection borders, and descriptive labels.
+- **Retro-Cyber Deck Aesthetic**:
+  - Surface: `DarkSurface` (`#131B2E`) with subtle borders (`#1E293B`) matching the retro terminal CRT style.
+  - Button styling: Pill-shaped Material 3 buttons with high-contrast status accents:
+    - **Step**: Terminal Cyan (`#38BDF8`) with `Icons.Default.SkipNext` and "STEP" monospace badge.
+    - **Pause / Resume**: Amber (`#FBBF24`) when running (`Icons.Default.Pause`), Green (`#4ADE80`) when paused (`Icons.Default.PlayArrow`).
+    - **Stop**: Crimson (`#EF4444`) with `Icons.Default.Stop`.
+  - State Indicator: Monospace status badge (`RUNNING`, `PAUSED`, `IDLE`, `INPUT`) with glowing status dot.
+- **Placement & Safe Insets**:
+  - Docked directly above `NavigationBar` in `Scaffold(bottomBar = { Column { ExecutionToolbar(...); NavigationBar(...) } })`.
+  - Maintains strict 48.dp minimum touch target height with tactile haptic/ripple feedback.
 
 ---
 
-## 3. Technical Architecture & Command Specifications
+## 3. Key Product Decisions & Trade-Offs
 
-### A. BASIC Language Additions
-
-#### 1. Graphics & Screen Commands
-- `SCREEN mode`:
-  - `SCREEN 0`: Text Terminal Mode (default text console).
-  - `SCREEN 1`: 320x200 16-color Retro Graphics Mode with Sprites.
-  - `SCREEN 2`: 320x200 High-Color Graphics Mode.
-- `CLS`: Clears the current screen (or resets graphics canvas to background color).
-- `COLOR fg [, bg]`: Sets active drawing and text foreground/background color.
-- `PSET (x, y) [, color]`: Sets a single pixel at `(x, y)`.
-- `LINE (x1, y1)-(x2, y2) [, color]`: Bresenham line between two points.
-- `RECT (x1, y1)-(x2, y2) [, color] [, fill]`: Draws rectangle or filled box.
-- `CIRCLE (x, y), radius [, color] [, fill]`: Midpoint circle algorithm.
-
-#### 2. Sound & Music Commands
-- `SOUND freq, duration [, waveType]`:
-  - `freq`: Frequency in Hz (e.g. `440` for A4, `20` to `5000`).
-  - `duration`: Duration in milliseconds (e.g. `200`).
-  - `waveType`: `0` = Square (pulse), `1` = Triangle, `2` = Sawtooth, `3` = Sine, `4` = Noise.
-- `PLAY "MML_STRING"`: Music Macro Language parser (e.g., `PLAY "T120 O4 C D E F G A B > C"`).
-- `SFX preset`: Plays built-in classic sound effect presets (`0` = Laser, `1` = Jump, `2` = Explosion, `3` = Coin, `4` = Powerup).
-
-#### 3. Sprite Engine Commands
-- `SPRITEDEF id, size, "hex_or_binary_data"`:
-  - `id`: Sprite slot `0..15`.
-  - `size`: `8` (for 8x8) or `16` (for 16x16).
-  - Hex or binary string defining the pixel mask/colors.
-- `SPRITE id, x, y [, pattern] [, color]`: Sets position and appearance of sprite `id`.
-- `SPRITEMOVE id, dx, dy`: Translates sprite position relative to current coordinates.
-- `SPRITESHOW id, visible`: Toggle visibility (0 or 1).
-- `SPRITEHIT(id1, id2)`: Built-in function returning `1` if bounding boxes/pixels overlap, `0` otherwise.
-
-#### 4. Custom Launcher Icons (8 Default Options)
-1. **Retro Microcomputer**: Classic beige desktop monitor and keyboard.
-2. **BASIC 8-Bit Logo**: Glowing emerald CRT terminal prompt (`READY > _`).
-3. **3.5" Floppy Disk**: Iconic blue/gray floppy diskette with label.
-4. **Silicon Microchip**: DIP integrated circuit package with gold pins.
-5. **Space Invader**: Classic pixel art arcade alien.
-6. **Arcade Joystick**: Retro red-ball joystick with action buttons.
-7. **Pixel Gem / Diamond**: 8-bit shiny game diamond.
-8. **Retro Cassette Tape**: 8-bit program data storage cassette tape.
+- **Decision 1: Source-Line Stepping vs. Opcode Stepping**
+  - *Chosen Approach*: Step by source line (`stepLine()`). It runs micro-instructions until the next positive source line number is reached or program halts.
+  - *Why*: BASIC programmers reason in terms of statements (`10 FOR I = 1 TO 10`, `20 PRINT I`), not raw stack operations (`PUSH_CONST`, `LOAD_VAR`).
+  - *Alternative Considered*: Raw bytecode stepping (reserved for the Bytecode tab and low-level disassembly).
+- **Decision 2: Seamless Tab Switching on Pause**
+  - *Chosen Approach*: When **Pause** is triggered, state moves to `PAUSED_DEBUG` and `activeTab` switches automatically to `AppTab.DEBUGGER` so variables and call stack are instantly visible.
+  - *Why*: Reduces cognitive friction and multiple manual navigation taps when hunting bugs.
+- **Decision 3: Dedicated Bar vs. Header Actions**
+  - *Chosen Approach*: Dedicated bottom bar dock.
+  - *Why*: Top bar space is already occupied by app title, Samples, Export APK, and screen modes. A bottom dock places playback controls within easy one-handed thumb reach on mobile devices.
 
 ---
 
-## 4. System & Execution Plan
+## 4. Technical Architecture & Data Strategy
+
+### Component Hierarchy & Interaction Flow
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│ BASIC Source Code                                                      │
-│    │                                                                   │
-│    ▼                                                                   │
-│ BasicCompiler / Lexer                                                  │
-│    ├─► Emits OpCodes: OP_SCREEN, OP_PSET, OP_LINE, OP_RECT,            │
-│    │                  OP_CIRCLE, OP_SOUND, OP_SFX, OP_SPRITEDEF,       │
-│    │                  OP_SPRITE, OP_SPRITEMOVE, OP_SPRITEHIT           │
-│    ▼                                                                   │
-│ BasicVirtualMachine                                                    │
-│    ├─► AudioSynthEngine (AudioTrack PCM streaming)                     │
-│    ├─► RetroGraphicsState (320x200 pixel buffer + Sprite slots)        │
-│    └─► TerminalLine text stream                                        │
-│    │                                                                   │
-│    ▼                                                                   │
-│ UI (BasicStudioScreens & RuntimeActivity)                              │
-│    ├─► Compose Canvas: renders RetroGraphicsState + Sprites            │
-│    └─► Compose TerminalScreen: text and input                          │
-│                                                                        │
-│ StandaloneApkBuilder                                                   │
-│    ├─► Icon Generator: Writes mipmap PNGs for selected retro icon      │
-│    └─► APK Packager: Repacks runner-base.apk with icon + bytecode      │
-└────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────┐
+│                   Scaffold Layout                      │
+│                                                        │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  TopAppBar (Title, Samples, Export APK)          │  │
+│  └──────────────────────────────────────────────────┘  │
+│                                                        │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  Content Area (Active Tab)                       │  │
+│  │  [ Editor | Terminal / Screen | Debug | Bytecode]│  │
+│  └──────────────────────────────────────────────────┘  │
+│                                                        │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  ExecutionToolbar (Step, Pause/Resume, Stop)     │  │
+│  │  • Status badge (RUNNING / PAUSED / IDLE)        │  │
+│  │  • Line Stepper (SkipNext)                       │  │
+│  │  • Pause / Resume toggle                         │  │
+│  │  • Terminate (Stop)                              │  │
+│  └──────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  NavigationBar (Bottom tabs)                     │  │
+│  └──────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────┘
 ```
 
-### Verification & Testing
-1. **Compiler & VM Unit Tests**: Add test cases in `app/src/test/` verifying opcode generation and execution for `SCREEN`, `PSET`, `LINE`, `SOUND`, `SPRITE`, and `SPRITEHIT`.
-2. **Audio Track Synthesis Test**: Validate PCM buffer calculations and waveform generation.
-3. **Sprite Collision Test**: Verify `SPRITEHIT` returns 1 on overlap and 0 on separation.
-4. **Standalone APK Builder Test**: Verify packaging with each of the 8 icon options produces valid APKs without Zip or AXML corruption.
-5. **Sample Programs**: Include a complete new sample program showcasing graphics, sound effects, and movable sprites.
+### State Transitions
+
+```
+   ┌───────────┐         Step / Run          ┌───────────────┐
+   │   IDLE    │ ──────────────────────────> │    RUNNING    │
+   └───────────┘                             └───────────────┘
+         ▲                                           │
+         │ Stop                                      │ Pause
+         │                                           ▼
+   ┌───────────┐         Resume              ┌───────────────┐
+   │TERMINATED │ <────────────────────────── │ PAUSED_DEBUG  │
+   └───────────┘        (or Stop)            └───────────────┘
+                                                │       ▲
+                                                └──Step─┘
+```
+
+### Virtual Machine & ViewModel Additions
+- **`BasicVirtualMachine.kt`**:
+  - `isPauseRequested: Boolean` flag checked inside the cooperative execution loop.
+  - `fun pause()`: sets flag and updates state to `VmState.PAUSED_DEBUG`.
+  - `suspend fun stepLine(): Boolean`: advances until source line changes.
+- **`BasicViewModel.kt`**:
+  - `fun pauseProgram()`: invokes `vm.pause()`.
+  - `fun stepLine()`: compiles if needed, runs `vm.stepLine()`, and refreshes variables and call stack.
+  - `fun resumeExecution()`: resumes `vm.execute(debug = true)`.
+- **`BasicStudioScreens.kt`**:
+  - `ExecutionToolbar` composable with clear visual styling and test tags (`testTag("toolbar_step")`, `testTag("toolbar_pause")`, `testTag("toolbar_stop")`, `testTag("toolbar_resume")`).

@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan for Retro Graphics modes (320x200 canvas), 8-bit sound synthesis, sprite engine (8x8/16x16 with collisions), and standalone APK export with 8 customizable launcher icons.",
-  "updatedAt":  "2026-10-12T11:32:40.226195920Z",
+  "summary":  "Implementation plan for the Execution Control Toolbar with Step, Pause, and Stop buttons above the bottom navigation tabs, source-line stepping, and auto-switch to Debugger on pause.",
+  "updatedAt":  "2026-10-12T11:56:08.999503370Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

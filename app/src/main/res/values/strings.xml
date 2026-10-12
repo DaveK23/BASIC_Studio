@@ -7,7 +7,15 @@
     <string name="run_action">Run</string>
     <string name="debug_action">Debug</string>
     <string name="step_action">Step</string>
+    <string name="pause_action">Pause</string>
+    <string name="resume_action">Resume</string>
     <string name="stop_action">Stop</string>
+    <string name="toolbar_execution">Execution Controls</string>
+    <string name="status_running">RUNNING</string>
+    <string name="status_paused">PAUSED</string>
+    <string name="status_idle">IDLE</string>
+    <string name="status_input">INPUT</string>
+    <string name="status_stopped">STOPPED</string>
     <string name="clear_action">Clear</string>
     <string name="export_apk_action">Export APK</string>
     <string name="exporting_apk">Building standalone APK…</string>

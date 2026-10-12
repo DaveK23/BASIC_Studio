@@ -206,6 +206,7 @@ class BasicVirtualMachine(
     private var pendingInputDeferred: CompletableDeferred<String>? = null
     private var pendingInputVar: String? = null
     private var isStopRequested = false
+    private var isPauseRequested = false
 
     fun loadProgram(p: BytecodeProgram) {
         program = p
@@ -219,6 +220,7 @@ class BasicVirtualMachine(
         arrays.clear()
         callStack.clear()
         isStopRequested = false
+        isPauseRequested = false
         pendingInputDeferred = null
         state = VmState.IDLE
         graphicsState = com.example.basic.graphics.RetroGraphicsState()
@@ -260,8 +262,15 @@ class BasicVirtualMachine(
         def?.complete(text)
     }
 
+    fun pause() {
+        if (state == VmState.RUNNING) {
+            isPauseRequested = true
+        }
+    }
+
     fun stop() {
         isStopRequested = true
+        isPauseRequested = false
         pendingInputDeferred?.cancel()
         state = VmState.TERMINATED
         onStateChange(state)
@@ -274,10 +283,11 @@ class BasicVirtualMachine(
         val p = program ?: return
         isDebugMode = debug
         isStopRequested = false
+        isPauseRequested = false
         state = VmState.RUNNING
         onStateChange(state)
 
-        while (ip < p.instructions.size && !isStopRequested) {
+        while (ip < p.instructions.size && !isStopRequested && !isPauseRequested) {
             val instruction = p.instructions[ip]
             val currentLine = instruction.sourceLine
 
@@ -303,10 +313,24 @@ class BasicVirtualMachine(
                 ip++
             }
 
+            if (isPauseRequested) {
+                break
+            }
+
             // Cooperative yield for UI and user abort
             if (ip % 30 == 0) {
                 delay(1)
             }
+        }
+
+        if (isPauseRequested) {
+            isPauseRequested = false
+            state = VmState.PAUSED_DEBUG
+            onStateChange(state)
+            val currentInstructionLine = p.instructions.getOrNull(ip)?.sourceLine ?: -1
+            onIpChanged(ip, currentInstructionLine)
+            onVariablesChanged(variables.toMap())
+            return
         }
 
         if (state == VmState.RUNNING) {
@@ -314,6 +338,59 @@ class BasicVirtualMachine(
             onStateChange(state)
             onOutput(TerminalLine("\n*** PROGRAM COMPLETED ***", colorIndex = 11, isSystemNotice = true))
         }
+    }
+
+    /**
+     * Executes instructions until the next source line is reached, or program completes/pauses.
+     */
+    suspend fun stepLine(): Boolean {
+        val p = program ?: return false
+        if (ip >= p.instructions.size) {
+            state = VmState.TERMINATED
+            onStateChange(state)
+            return false
+        }
+
+        val startLine = p.instructions.getOrNull(ip)?.sourceLine ?: -1
+        var stepsCount = 0
+
+        while (ip < p.instructions.size && !isStopRequested) {
+            val instruction = p.instructions[ip]
+            val currentLine = instruction.sourceLine
+            val jumpOccurred = executeInstruction(instruction, p)
+
+            if (!jumpOccurred) {
+                ip++
+            }
+            stepsCount++
+
+            onIpChanged(ip, currentLine)
+            onVariablesChanged(variables.toMap())
+
+            if (state == VmState.WAITING_FOR_INPUT || state == VmState.TERMINATED || state == VmState.ERROR) {
+                return false
+            }
+
+            if (ip >= p.instructions.size) {
+                state = VmState.TERMINATED
+                onStateChange(state)
+                onOutput(TerminalLine("\n*** PROGRAM COMPLETED ***", colorIndex = 11, isSystemNotice = true))
+                return false
+            }
+
+            val nextLine = p.instructions.getOrNull(ip)?.sourceLine ?: -1
+            if (nextLine != startLine && nextLine > 0) {
+                break
+            }
+
+            if (stepsCount % 100 == 0) {
+                delay(1)
+            }
+        }
+
+        state = VmState.PAUSED_DEBUG
+        onStateChange(state)
+        return ip < p.instructions.size
     }
 
     /**

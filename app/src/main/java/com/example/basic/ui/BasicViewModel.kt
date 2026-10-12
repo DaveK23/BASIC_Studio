@@ -181,6 +181,20 @@ class BasicViewModel : ViewModel() {
         }
     }
 
+    fun stepLine() {
+        if (vm.state == VmState.IDLE || vm.state == VmState.TERMINATED) {
+            if (!compileCurrentCode()) return
+        }
+        viewModelScope.launch(Dispatchers.Default) {
+            vm.stepLine()
+            _callStack.value = vm.callStack.toList()
+        }
+    }
+
+    fun pauseProgram() {
+        vm.pause()
+    }
+
     fun resumeExecution() {
         viewModelScope.launch(Dispatchers.Default) {
             vm.execute(debug = vm.isDebugMode)

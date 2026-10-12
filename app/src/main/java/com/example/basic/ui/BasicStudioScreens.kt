@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Redo
 import androidx.compose.material.icons.filled.Send
@@ -51,10 +52,13 @@ import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -276,7 +280,7 @@ fun BasicStudioApp(viewModel: BasicViewModel) {
                     // Step Button
                     if (uiState.vmState == VmState.PAUSED_DEBUG) {
                         IconButton(
-                            onClick = { viewModel.stepInstruction() },
+                            onClick = { viewModel.stepLine() },
                             modifier = Modifier.testTag("step_button")
                         ) {
                             Icon(
@@ -316,10 +320,29 @@ fun BasicStudioApp(viewModel: BasicViewModel) {
             )
         },
         bottomBar = {
-            NavigationBar(
-                containerColor = DarkSurface,
-                tonalElevation = 6.dp
-            ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                ExecutionToolbar(
+                    vmState = uiState.vmState,
+                    currentLine = currentLine,
+                    monoFont = monoFont,
+                    onStep = {
+                        viewModel.stepLine()
+                    },
+                    onPause = {
+                        viewModel.pauseProgram()
+                        activeTab = AppTab.DEBUGGER
+                    },
+                    onResume = {
+                        viewModel.resumeExecution()
+                    },
+                    onStop = {
+                        viewModel.stopProgram()
+                    }
+                )
+                NavigationBar(
+                    containerColor = DarkSurface,
+                    tonalElevation = 6.dp
+                ) {
                 NavigationBarItem(
                     selected = activeTab == AppTab.EDITOR,
                     onClick = { activeTab = AppTab.EDITOR },
@@ -381,7 +404,8 @@ fun BasicStudioApp(viewModel: BasicViewModel) {
                 )
             }
         }
-    ) { paddingValues ->
+    }
+) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -885,7 +909,7 @@ fun DebuggerScreen(
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
-                        onClick = { viewModel.stepInstruction() },
+                        onClick = { viewModel.stepLine() },
                         enabled = vmState == VmState.PAUSED_DEBUG,
                         modifier = Modifier.testTag("debugger_step_button")
                     ) {
@@ -1255,4 +1279,209 @@ fun ExportApkDialog(
         },
         containerColor = DarkSurface
     )
+}
+
+/**
+ * Dedicated execution control toolbar docked above the bottom navigation tabs.
+ * Provides Step, Pause/Resume, and Stop buttons with live interpreter state indication.
+ */
+@Composable
+fun ExecutionToolbar(
+    vmState: VmState,
+    currentLine: Int,
+    monoFont: FontFamily,
+    onStep: () -> Unit,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onStop: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("execution_toolbar"),
+        color = Color(0xFF0C1222),
+        tonalElevation = 4.dp,
+        border = BorderStroke(1.dp, Color(0xFF1E293B))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Status Indicator Badge
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color(0xFF182238))
+                    .border(1.dp, Color(0xFF243354), RoundedCornerShape(6.dp))
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                    .testTag("toolbar_status_badge")
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(
+                            when (vmState) {
+                                VmState.RUNNING -> TerminalGreen
+                                VmState.PAUSED_DEBUG -> TerminalAmber
+                                VmState.WAITING_FOR_INPUT -> Color(0xFFF472B6)
+                                VmState.ERROR -> Color(0xFFEF4444)
+                                else -> Color(0xFF64748B)
+                            }
+                        )
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = when (vmState) {
+                        VmState.RUNNING -> stringResource(R.string.status_running)
+                        VmState.PAUSED_DEBUG -> if (currentLine > 0) "${stringResource(R.string.status_paused)} L:$currentLine" else stringResource(R.string.status_paused)
+                        VmState.WAITING_FOR_INPUT -> stringResource(R.string.status_input)
+                        VmState.TERMINATED -> stringResource(R.string.status_stopped)
+                        else -> stringResource(R.string.status_idle)
+                    },
+                    fontFamily = monoFont,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = when (vmState) {
+                        VmState.RUNNING -> TerminalGreen
+                        VmState.PAUSED_DEBUG -> TerminalAmber
+                        VmState.WAITING_FOR_INPUT -> Color(0xFFF472B6)
+                        VmState.ERROR -> Color(0xFFEF4444)
+                        else -> Color(0xFF94A3B8)
+                    }
+                )
+            }
+
+            // Controls: Step, Pause/Resume, Stop
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Step Button
+                FilledTonalButton(
+                    onClick = onStep,
+                    modifier = Modifier
+                        .height(38.dp)
+                        .testTag("toolbar_step"),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = Color(0xFF1E293B),
+                        contentColor = TerminalCyan
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.SkipNext,
+                        contentDescription = stringResource(R.string.step_action),
+                        modifier = Modifier.size(18.dp),
+                        tint = TerminalCyan
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = stringResource(R.string.step_action),
+                        fontFamily = monoFont,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // Pause or Resume Button
+                if (vmState == VmState.PAUSED_DEBUG) {
+                    Button(
+                        onClick = onResume,
+                        modifier = Modifier
+                            .height(38.dp)
+                            .testTag("toolbar_resume"),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = TerminalGreen,
+                            contentColor = Color(0xFF090D16)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = stringResource(R.string.resume_action),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = stringResource(R.string.resume_action),
+                            fontFamily = monoFont,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                } else {
+                    val isRunning = vmState == VmState.RUNNING
+                    FilledTonalButton(
+                        onClick = onPause,
+                        enabled = isRunning,
+                        modifier = Modifier
+                            .height(38.dp)
+                            .testTag("toolbar_pause"),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = if (isRunning) Color(0xFF45220A) else Color(0xFF1E293B).copy(alpha = 0.5f),
+                            contentColor = if (isRunning) TerminalAmber else Color(0xFF64748B),
+                            disabledContainerColor = Color(0xFF1E293B).copy(alpha = 0.3f),
+                            disabledContentColor = Color(0xFF475569)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Pause,
+                            contentDescription = stringResource(R.string.pause_action),
+                            modifier = Modifier.size(18.dp),
+                            tint = if (isRunning) TerminalAmber else Color(0xFF475569)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = stringResource(R.string.pause_action),
+                            fontFamily = monoFont,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                // Stop Button
+                val isStopActive = vmState == VmState.RUNNING || vmState == VmState.PAUSED_DEBUG || vmState == VmState.WAITING_FOR_INPUT
+                FilledTonalButton(
+                    onClick = onStop,
+                    enabled = isStopActive,
+                    modifier = Modifier
+                        .height(38.dp)
+                        .testTag("toolbar_stop"),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = if (isStopActive) Color(0xFF450A0A) else Color(0xFF1E293B).copy(alpha = 0.5f),
+                        contentColor = if (isStopActive) Color(0xFFEF4444) else Color(0xFF64748B),
+                        disabledContainerColor = Color(0xFF1E293B).copy(alpha = 0.3f),
+                        disabledContentColor = Color(0xFF475569)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Stop,
+                        contentDescription = stringResource(R.string.stop_action),
+                        modifier = Modifier.size(18.dp),
+                        tint = if (isStopActive) Color(0xFFEF4444) else Color(0xFF475569)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = stringResource(R.string.stop_action),
+                        fontFamily = monoFont,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
 }
