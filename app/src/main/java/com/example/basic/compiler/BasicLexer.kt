@@ -14,6 +14,8 @@ enum class TokenType {
     // Keywords
     PRINT, INPUT, LET, IF, THEN, ELSE, FOR, TO, STEP, NEXT,
     GOTO, GOSUB, RETURN, WHILE, WEND, END, STOP, REM, CLS, COLOR, BEEP, SLEEP, DIM,
+    // Graphics, Sound, Sprites
+    SCREEN, PSET, LINE, RECT, CIRCLE, SOUND, SFX, SPRITEDEF, SPRITE, SPRITEMOVE, SPRITESHOW,
     // Operators
     PLUS, MINUS, MULTIPLY, DIVIDE, MODULO, POWER,
     EQ, NEQ, LT, LTE, GT, GTE,
@@ -62,6 +64,17 @@ class BasicLexer(private val source: String) {
         "BEEP" to TokenType.BEEP,
         "SLEEP" to TokenType.SLEEP,
         "DIM" to TokenType.DIM,
+        "SCREEN" to TokenType.SCREEN,
+        "PSET" to TokenType.PSET,
+        "LINE" to TokenType.LINE,
+        "RECT" to TokenType.RECT,
+        "CIRCLE" to TokenType.CIRCLE,
+        "SOUND" to TokenType.SOUND,
+        "SFX" to TokenType.SFX,
+        "SPRITEDEF" to TokenType.SPRITEDEF,
+        "SPRITE" to TokenType.SPRITE,
+        "SPRITEMOVE" to TokenType.SPRITEMOVE,
+        "SPRITESHOW" to TokenType.SPRITESHOW,
         "AND" to TokenType.AND,
         "OR" to TokenType.OR,
         "NOT" to TokenType.NOT,

@@ -118,6 +118,89 @@ object SamplePrograms {
 130 PRINT "Done finding primes!"
 140 END
 """
+        ),
+        BasicSample(
+            title = "Retro Sprite Arcade Game",
+            description = "Showcases SCREEN 1 graphics mode, 8x8 sprite definition, movement, SOUND synth, and SPRITEHIT collisions.",
+            code = """10 REM *** RETRO ARCADE DEMO ***
+20 SCREEN 1
+30 CLS
+40 COLOR 14
+50 PRINT "RETRO 320x200 GRAPHICS & SPRITES"
+60 REM Draw starry background & mountain horizon
+70 RECT (0, 0)-(319, 199), 0, 1
+80 FOR S = 1 TO 35
+90   PSET (INT(RND(315)) + 2, INT(RND(140)) + 15), 15
+100 NEXT S
+110 LINE (0, 160)-(100, 120), 9
+120 LINE (100, 120)-(200, 170), 9
+130 LINE (200, 170)-(319, 130), 9
+140 RECT (0, 170)-(319, 199), 5, 1
+150 REM Define Alien Sprite 0 (8x8 pixel mask)
+160 SPRITEDEF 0, 8, "00100100010110100111111011011011111111110100001010100101"
+170 REM Define Hero Ship Sprite 1
+180 SPRITEDEF 1, 8, "00011000001111000111111011111111110110110011110001000010"
+190 REM Position Sprites
+200 SPRITE 0, 40, 50, 0, 4
+210 SPRITE 1, 140, 140, 0, 3
+220 SFX 4
+230 REM Main Game Loop with Animated Patrol & Collision
+240 FOR T = 1 TO 40
+250   SPRITEMOVE 0, 4, 1
+260   SOUND 440 + T * 15, 30, 0
+270   HIT = SPRITEHIT(0, 1)
+280   IF HIT = 1 THEN GOTO 320
+290   SLEEP 60
+300 NEXT T
+310 GOTO 350
+320 REM Collision Event
+330 SFX 2
+340 CIRCLE (140, 140), 20, 2, 1
+350 COLOR 10
+360 PRINT "Game Loop Complete!"
+370 END
+"""
+        ),
+        BasicSample(
+            title = "8-Bit Chiptune & Sound Synth",
+            description = "Tests Square, Triangle, Sawtooth, Sine, Noise sound waves, and built-in SFX.",
+            code = """10 REM *** 8-BIT AUDIO SYNTHESIS DEMO ***
+20 CLS
+30 COLOR 14
+40 PRINT "8-BIT SOUND SYNTHESIZER DEMO"
+50 PRINT "============================"
+60 PRINT "Testing Waveforms:"
+70 PRINT "1. Square Wave (Pulse)"
+80 SOUND 440, 250, 0
+90 SLEEP 100
+100 PRINT "2. Triangle Wave (Smooth)"
+110 SOUND 554, 250, 1
+120 SLEEP 100
+130 PRINT "3. Sawtooth Wave (Buzzy)"
+140 SOUND 659, 250, 2
+150 SLEEP 100
+160 PRINT "4. Sine Wave (Pure)"
+170 SOUND 880, 250, 3
+180 SLEEP 100
+190 PRINT "5. Noise Generator (Drum)"
+200 SOUND 100, 200, 4
+210 SLEEP 200
+220 PRINT ""
+230 PRINT "Testing Retro SFX Presets:"
+240 PRINT "SFX 0: Arcade Laser";
+250 SFX 0
+260 SLEEP 300
+270 PRINT " | SFX 1: Platform Jump";
+280 SFX 1
+290 SLEEP 350
+300 PRINT " | SFX 3: Coin Pickup";
+310 SFX 3
+320 SLEEP 400
+330 COLOR 10
+340 PRINT ""
+350 PRINT "Audio Test Completed Successfully!"
+360 END
+"""
         )
     )
 }

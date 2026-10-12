@@ -174,7 +174,10 @@ class BasicVirtualMachine(
     private val onVariablesChanged: (Map<String, BasicValue>) -> Unit = {},
     private val onIpChanged: (currentIp: Int, sourceLine: Int) -> Unit = { _, _ -> },
     private val onClearScreen: () -> Unit = {},
-    private val onBeep: () -> Unit = {}
+    private val onBeep: () -> Unit = {},
+    private val onGraphicsStateChanged: (com.example.basic.graphics.RetroGraphicsState) -> Unit = {},
+    private val onSound: (freqHz: Double, durationMs: Long, waveType: Int) -> Unit = { _, _, _ -> },
+    private val onSfx: (preset: Int) -> Unit = {}
 ) {
     var program: BytecodeProgram? = null
         private set
@@ -189,6 +192,10 @@ class BasicVirtualMachine(
     val variables = mutableMapOf<String, BasicValue>()
     val arrays = mutableMapOf<String, MutableMap<Int, BasicValue>>()
     val callStack = ArrayDeque<CallFrame>()
+
+    // Retro Graphics & Sprites State
+    var graphicsState = com.example.basic.graphics.RetroGraphicsState()
+        private set
 
     // Debugging controls
     val breakpoints = mutableSetOf<Int>() // Line numbers or IP
@@ -213,6 +220,9 @@ class BasicVirtualMachine(
         callStack.clear()
         isStopRequested = false
         pendingInputDeferred = null
+        state = VmState.IDLE
+        graphicsState = com.example.basic.graphics.RetroGraphicsState()
+        onGraphicsStateChanged(graphicsState)
         pendingInputVar = null
         currentTextColor = 0
         state = VmState.IDLE
@@ -524,10 +534,164 @@ class BasicVirtualMachine(
                 }
                 OpCode.CLS -> {
                     onClearScreen()
+                    if (graphicsState.mode > 0) {
+                        graphicsState = graphicsState.copy(
+                            pixels = IntArray(320 * 200) { graphicsState.backgroundColor },
+                            revision = graphicsState.revision + 1
+                        )
+                        onGraphicsStateChanged(graphicsState)
+                    }
                 }
                 OpCode.COLOR -> {
                     val c = popValue().asNumber().toInt()
                     currentTextColor = c % 16
+                    graphicsState = graphicsState.copy(currentColor = c.coerceIn(0, 15))
+                    onGraphicsStateChanged(graphicsState)
+                }
+                OpCode.SCREEN -> {
+                    val mode = popValue().asNumber().toInt()
+                    graphicsState = graphicsState.copy(mode = mode, revision = graphicsState.revision + 1)
+                    onGraphicsStateChanged(graphicsState)
+                }
+                OpCode.PSET -> {
+                    val cArg = popValue().asNumber().toInt()
+                    val y = popValue().asNumber().toInt()
+                    val x = popValue().asNumber().toInt()
+                    val color = if (cArg >= 0) cArg % 16 else graphicsState.currentColor
+                    if (x in 0 until 320 && y in 0 until 200) {
+                        graphicsState.pixels[y * 320 + x] = color
+                        graphicsState = graphicsState.copy(revision = graphicsState.revision + 1)
+                        onGraphicsStateChanged(graphicsState)
+                    }
+                }
+                OpCode.DRAW_LINE -> {
+                    val cArg = popValue().asNumber().toInt()
+                    val y2 = popValue().asNumber().toInt()
+                    val x2 = popValue().asNumber().toInt()
+                    val y1 = popValue().asNumber().toInt()
+                    val x1 = popValue().asNumber().toInt()
+                    val color = if (cArg >= 0) cArg % 16 else graphicsState.currentColor
+                    drawLineBresenham(x1, y1, x2, y2, color)
+                    graphicsState = graphicsState.copy(revision = graphicsState.revision + 1)
+                    onGraphicsStateChanged(graphicsState)
+                }
+                OpCode.DRAW_RECT -> {
+                    val fill = popValue().asNumber().toInt()
+                    val cArg = popValue().asNumber().toInt()
+                    val y2 = popValue().asNumber().toInt()
+                    val x2 = popValue().asNumber().toInt()
+                    val y1 = popValue().asNumber().toInt()
+                    val x1 = popValue().asNumber().toInt()
+                    val color = if (cArg >= 0) cArg % 16 else graphicsState.currentColor
+                    drawRectBresenham(x1, y1, x2, y2, color, fill != 0)
+                    graphicsState = graphicsState.copy(revision = graphicsState.revision + 1)
+                    onGraphicsStateChanged(graphicsState)
+                }
+                OpCode.DRAW_CIRCLE -> {
+                    val fill = popValue().asNumber().toInt()
+                    val cArg = popValue().asNumber().toInt()
+                    val radius = popValue().asNumber().toInt()
+                    val y = popValue().asNumber().toInt()
+                    val x = popValue().asNumber().toInt()
+                    val color = if (cArg >= 0) cArg % 16 else graphicsState.currentColor
+                    drawCircleBresenham(x, y, radius, color, fill != 0)
+                    graphicsState = graphicsState.copy(revision = graphicsState.revision + 1)
+                    onGraphicsStateChanged(graphicsState)
+                }
+                OpCode.SOUND -> {
+                    val waveType = popValue().asNumber().toInt().coerceIn(0, 4)
+                    val durationMs = popValue().asNumber().toLong().coerceAtLeast(1)
+                    val freqHz = popValue().asNumber().coerceAtLeast(20.0)
+                    onSound(freqHz, durationMs, waveType)
+                }
+                OpCode.SFX -> {
+                    val preset = popValue().asNumber().toInt()
+                    onSfx(preset)
+                }
+                OpCode.SPRITEDEF -> {
+                    val patRaw = popValue().toString()
+                    val size = popValue().asNumber().toInt().let { if (it == 16) 16 else 8 }
+                    val id = popValue().asNumber().toInt().coerceIn(0, 15)
+
+                    // Convert pattern string (hex or binary 0/1) to List<Boolean>
+                    val requiredBits = size * size
+                    val bits = mutableListOf<Boolean>()
+                    val clean = patRaw.replace(" ", "").trim()
+                    if (clean.all { it == '0' || it == '1' } && clean.length >= requiredBits) {
+                        for (i in 0 until requiredBits) {
+                            bits.add(clean[i] == '1')
+                        }
+                    } else {
+                        // Parse as hex string e.g. "AA55AA55..."
+                        for (ch in clean) {
+                            val hexVal = ch.digitToIntOrNull(16) ?: 0
+                            for (b in 3 downTo 0) {
+                                if (bits.size < requiredBits) {
+                                    bits.add(((hexVal shr b) and 1) == 1)
+                                }
+                            }
+                        }
+                        while (bits.size < requiredBits) {
+                            bits.add(false)
+                        }
+                    }
+
+                    val updatedSprites = graphicsState.sprites.toMutableMap()
+                    val currentSprite = updatedSprites[id] ?: com.example.basic.graphics.Sprite(id = id, width = size, height = size)
+                    updatedSprites[id] = currentSprite.copy(width = size, height = size, pattern = bits)
+                    graphicsState = graphicsState.copy(sprites = updatedSprites, revision = graphicsState.revision + 1)
+                    onGraphicsStateChanged(graphicsState)
+                }
+                OpCode.SPRITE -> {
+                    val colorArg = popValue().asNumber().toInt()
+                    val patArg = popValue().asNumber().toInt()
+                    val y = popValue().asNumber().toInt()
+                    val x = popValue().asNumber().toInt()
+                    val id = popValue().asNumber().toInt().coerceIn(0, 15)
+
+                    val updatedSprites = graphicsState.sprites.toMutableMap()
+                    val currentSprite = updatedSprites[id] ?: com.example.basic.graphics.Sprite(id = id)
+                    val finalColor = if (colorArg >= 0) colorArg % 16 else currentSprite.colorIndex
+                    updatedSprites[id] = currentSprite.copy(
+                        x = x,
+                        y = y,
+                        colorIndex = finalColor,
+                        visible = true
+                    )
+                    graphicsState = graphicsState.copy(sprites = updatedSprites, revision = graphicsState.revision + 1)
+                    onGraphicsStateChanged(graphicsState)
+                }
+                OpCode.SPRITEMOVE -> {
+                    val dy = popValue().asNumber().toInt()
+                    val dx = popValue().asNumber().toInt()
+                    val id = popValue().asNumber().toInt().coerceIn(0, 15)
+
+                    val updatedSprites = graphicsState.sprites.toMutableMap()
+                    val currentSprite = updatedSprites[id] ?: com.example.basic.graphics.Sprite(id = id)
+                    updatedSprites[id] = currentSprite.copy(
+                        x = currentSprite.x + dx,
+                        y = currentSprite.y + dy
+                    )
+                    graphicsState = graphicsState.copy(sprites = updatedSprites, revision = graphicsState.revision + 1)
+                    onGraphicsStateChanged(graphicsState)
+                }
+                OpCode.SPRITESHOW -> {
+                    val visible = popValue().asNumber().toInt() != 0
+                    val id = popValue().asNumber().toInt().coerceIn(0, 15)
+
+                    val updatedSprites = graphicsState.sprites.toMutableMap()
+                    val currentSprite = updatedSprites[id] ?: com.example.basic.graphics.Sprite(id = id)
+                    updatedSprites[id] = currentSprite.copy(visible = visible)
+                    graphicsState = graphicsState.copy(sprites = updatedSprites, revision = graphicsState.revision + 1)
+                    onGraphicsStateChanged(graphicsState)
+                }
+                OpCode.SPRITEHIT -> {
+                    val id2 = popValue().asNumber().toInt().coerceIn(0, 15)
+                    val id1 = popValue().asNumber().toInt().coerceIn(0, 15)
+                    val s1 = graphicsState.sprites[id1]
+                    val s2 = graphicsState.sprites[id2]
+                    val hits = if (s1 != null && s2 != null) s1.hits(s2) else false
+                    stack.addLast(BasicValue.BooleanVal(hits))
                 }
                 OpCode.BEEP -> {
                     onBeep()
@@ -595,5 +759,110 @@ class BasicVirtualMachine(
             else -> BasicValue.NumberVal(0.0)
         }
         stack.addLast(result)
+    }
+
+    private fun drawLineBresenham(x1: Int, y1: Int, x2: Int, y2: Int, color: Int) {
+        var x0 = x1
+        var y0 = y1
+        val dx = kotlin.math.abs(x2 - x0)
+        val dy = -kotlin.math.abs(y2 - y0)
+        val sx = if (x0 < x2) 1 else -1
+        val sy = if (y0 < y2) 1 else -1
+        var err = dx + dy
+
+        while (true) {
+            if (x0 in 0 until 320 && y0 in 0 until 200) {
+                graphicsState.pixels[y0 * 320 + x0] = color
+            }
+            if (x0 == x2 && y0 == y2) break
+            val e2 = 2 * err
+            if (e2 >= dy) {
+                err += dy
+                x0 += sx
+            }
+            if (e2 <= dx) {
+                err += dx
+                y0 += sy
+            }
+        }
+    }
+
+    private fun drawRectBresenham(x1: Int, y1: Int, x2: Int, y2: Int, color: Int, fill: Boolean) {
+        val minX = kotlin.math.min(x1, x2).coerceIn(0, 319)
+        val maxX = kotlin.math.max(x1, x2).coerceIn(0, 319)
+        val minY = kotlin.math.min(y1, y2).coerceIn(0, 199)
+        val maxY = kotlin.math.max(y1, y2).coerceIn(0, 199)
+
+        if (fill) {
+            for (y in minY..maxY) {
+                for (x in minX..maxX) {
+                    graphicsState.pixels[y * 320 + x] = color
+                }
+            }
+        } else {
+            for (x in minX..maxX) {
+                graphicsState.pixels[minY * 320 + x] = color
+                graphicsState.pixels[maxY * 320 + x] = color
+            }
+            for (y in minY..maxY) {
+                graphicsState.pixels[y * 320 + minX] = color
+                graphicsState.pixels[y * 320 + maxX] = color
+            }
+        }
+    }
+
+    private fun drawCircleBresenham(xc: Int, yc: Int, r: Int, color: Int, fill: Boolean) {
+        if (r <= 0) {
+            if (xc in 0 until 320 && yc in 0 until 200) {
+                graphicsState.pixels[yc * 320 + xc] = color
+            }
+            return
+        }
+
+        if (fill) {
+            for (dy in -r..r) {
+                val curY = yc + dy
+                if (curY !in 0 until 200) continue
+                val dxMax = kotlin.math.sqrt((r * r - dy * dy).toDouble()).toInt()
+                val minX = (xc - dxMax).coerceIn(0, 319)
+                val maxX = (xc + dxMax).coerceIn(0, 319)
+                for (x in minX..maxX) {
+                    graphicsState.pixels[curY * 320 + x] = color
+                }
+            }
+        } else {
+            var x = 0
+            var y = r
+            var d = 3 - 2 * r
+
+            fun putCirclePixel(px: Int, py: Int) {
+                if (px in 0 until 320 && py in 0 until 200) {
+                    graphicsState.pixels[py * 320 + px] = color
+                }
+            }
+
+            fun plotCirclePoints(cx: Int, cy: Int, px: Int, py: Int) {
+                putCirclePixel(cx + px, cy + py)
+                putCirclePixel(cx - px, cy + py)
+                putCirclePixel(cx + px, cy - py)
+                putCirclePixel(cx - px, cy - py)
+                putCirclePixel(cx + py, cy + px)
+                putCirclePixel(cx - py, cy + px)
+                putCirclePixel(cx + py, cy - px)
+                putCirclePixel(cx - py, cy - px)
+            }
+
+            plotCirclePoints(xc, yc, x, y)
+            while (y >= x) {
+                x++
+                if (d > 0) {
+                    y--
+                    d += 4 * (x - y) + 10
+                } else {
+                    d += 4 * x + 6
+                }
+                plotCirclePoints(xc, yc, x, y)
+            }
+        }
     }
 }

@@ -175,6 +175,17 @@ class BasicCompiler {
                     emit(OpCode.SLEEP, sourceLine = sourceLine, sourceLineNum = basicLineNum ?: -1)
                 }
                 TokenType.DIM -> parseDim(sourceLine, basicLineNum)
+                TokenType.SCREEN -> parseScreen(sourceLine, basicLineNum)
+                TokenType.PSET -> parsePset(sourceLine, basicLineNum)
+                TokenType.LINE -> parseLine(sourceLine, basicLineNum)
+                TokenType.RECT -> parseRect(sourceLine, basicLineNum)
+                TokenType.CIRCLE -> parseCircle(sourceLine, basicLineNum)
+                TokenType.SOUND -> parseSound(sourceLine, basicLineNum)
+                TokenType.SFX -> parseSfx(sourceLine, basicLineNum)
+                TokenType.SPRITEDEF -> parseSpriteDef(sourceLine, basicLineNum)
+                TokenType.SPRITE -> parseSprite(sourceLine, basicLineNum)
+                TokenType.SPRITEMOVE -> parseSpriteMove(sourceLine, basicLineNum)
+                TokenType.SPRITESHOW -> parseSpriteShow(sourceLine, basicLineNum)
                 TokenType.IDENTIFIER -> {
                     // Implicit assignment e.g. A = 5 or A(1) = 5
                     parseAssignment(sourceLine, basicLineNum)
@@ -245,6 +256,177 @@ class BasicCompiler {
                 sourceLine = sourceLine,
                 sourceLineNum = basicLineNum ?: -1
             )
+        }
+
+        private fun parseScreen(sourceLine: Int, basicLineNum: Int?) {
+            advance() // consume SCREEN
+            parseExpression(sourceLine)
+            emit(OpCode.SCREEN, sourceLine = sourceLine, sourceLineNum = basicLineNum ?: -1)
+        }
+
+        private fun parsePset(sourceLine: Int, basicLineNum: Int?) {
+            advance() // consume PSET
+            val hasParen = match(TokenType.LPAREN)
+            parseExpression(sourceLine) // X
+            consume(TokenType.COMMA, "Expected ',' between X and Y in PSET")
+            parseExpression(sourceLine) // Y
+            if (hasParen) consume(TokenType.RPAREN, "Expected ')' after PSET coordinates")
+
+            if (match(TokenType.COMMA)) {
+                parseExpression(sourceLine) // color
+            } else {
+                emit(OpCode.PUSH_CONST, argInt = addConstant(BasicValue.NumberVal(-1.0)), sourceLine = sourceLine)
+            }
+            emit(OpCode.PSET, sourceLine = sourceLine, sourceLineNum = basicLineNum ?: -1)
+        }
+
+        private fun parseLine(sourceLine: Int, basicLineNum: Int?) {
+            advance() // consume LINE
+            val hasParen1 = match(TokenType.LPAREN)
+            parseExpression(sourceLine) // X1
+            consume(TokenType.COMMA, "Expected ',' between X1 and Y1")
+            parseExpression(sourceLine) // Y1
+            if (hasParen1) consume(TokenType.RPAREN, "Expected ')' after (X1, Y1)")
+
+            consume(TokenType.MINUS, "Expected '-' between points in LINE (x1,y1)-(x2,y2)")
+
+            val hasParen2 = match(TokenType.LPAREN)
+            parseExpression(sourceLine) // X2
+            consume(TokenType.COMMA, "Expected ',' between X2 and Y2")
+            parseExpression(sourceLine) // Y2
+            if (hasParen2) consume(TokenType.RPAREN, "Expected ')' after (X2, Y2)")
+
+            if (match(TokenType.COMMA)) {
+                parseExpression(sourceLine) // color
+            } else {
+                emit(OpCode.PUSH_CONST, argInt = addConstant(BasicValue.NumberVal(-1.0)), sourceLine = sourceLine)
+            }
+            emit(OpCode.DRAW_LINE, sourceLine = sourceLine, sourceLineNum = basicLineNum ?: -1)
+        }
+
+        private fun parseRect(sourceLine: Int, basicLineNum: Int?) {
+            advance() // consume RECT
+            val hasParen1 = match(TokenType.LPAREN)
+            parseExpression(sourceLine) // X1
+            consume(TokenType.COMMA, "Expected ',' between X1 and Y1")
+            parseExpression(sourceLine) // Y1
+            if (hasParen1) consume(TokenType.RPAREN, "Expected ')' after (X1, Y1)")
+
+            consume(TokenType.MINUS, "Expected '-' between points in RECT (x1,y1)-(x2,y2)")
+
+            val hasParen2 = match(TokenType.LPAREN)
+            parseExpression(sourceLine) // X2
+            consume(TokenType.COMMA, "Expected ',' between X2 and Y2")
+            parseExpression(sourceLine) // Y2
+            if (hasParen2) consume(TokenType.RPAREN, "Expected ')' after (X2, Y2)")
+
+            if (match(TokenType.COMMA)) {
+                parseExpression(sourceLine) // color
+            } else {
+                emit(OpCode.PUSH_CONST, argInt = addConstant(BasicValue.NumberVal(-1.0)), sourceLine = sourceLine)
+            }
+
+            if (match(TokenType.COMMA)) {
+                parseExpression(sourceLine) // fill (1 = filled, 0 = outline)
+            } else {
+                emit(OpCode.PUSH_CONST, argInt = addConstant(BasicValue.NumberVal(0.0)), sourceLine = sourceLine)
+            }
+            emit(OpCode.DRAW_RECT, sourceLine = sourceLine, sourceLineNum = basicLineNum ?: -1)
+        }
+
+        private fun parseCircle(sourceLine: Int, basicLineNum: Int?) {
+            advance() // consume CIRCLE
+            val hasParen = match(TokenType.LPAREN)
+            parseExpression(sourceLine) // X
+            consume(TokenType.COMMA, "Expected ',' between X and Y")
+            parseExpression(sourceLine) // Y
+            if (hasParen) consume(TokenType.RPAREN, "Expected ')' after (X, Y)")
+
+            consume(TokenType.COMMA, "Expected ',' before radius in CIRCLE")
+            parseExpression(sourceLine) // radius
+
+            if (match(TokenType.COMMA)) {
+                parseExpression(sourceLine) // color
+            } else {
+                emit(OpCode.PUSH_CONST, argInt = addConstant(BasicValue.NumberVal(-1.0)), sourceLine = sourceLine)
+            }
+
+            if (match(TokenType.COMMA)) {
+                parseExpression(sourceLine) // fill (1 = filled, 0 = outline)
+            } else {
+                emit(OpCode.PUSH_CONST, argInt = addConstant(BasicValue.NumberVal(0.0)), sourceLine = sourceLine)
+            }
+            emit(OpCode.DRAW_CIRCLE, sourceLine = sourceLine, sourceLineNum = basicLineNum ?: -1)
+        }
+
+        private fun parseSound(sourceLine: Int, basicLineNum: Int?) {
+            advance() // consume SOUND
+            parseExpression(sourceLine) // freqHz
+            consume(TokenType.COMMA, "Expected ',' between frequency and duration in SOUND")
+            parseExpression(sourceLine) // durationMs
+
+            if (match(TokenType.COMMA)) {
+                parseExpression(sourceLine) // waveType: 0=square, 1=triangle, 2=sawtooth, 3=sine, 4=noise
+            } else {
+                emit(OpCode.PUSH_CONST, argInt = addConstant(BasicValue.NumberVal(0.0)), sourceLine = sourceLine)
+            }
+            emit(OpCode.SOUND, sourceLine = sourceLine, sourceLineNum = basicLineNum ?: -1)
+        }
+
+        private fun parseSfx(sourceLine: Int, basicLineNum: Int?) {
+            advance() // consume SFX
+            parseExpression(sourceLine) // preset id: 0=laser, 1=jump, 2=explosion, 3=coin, 4=powerup
+            emit(OpCode.SFX, sourceLine = sourceLine, sourceLineNum = basicLineNum ?: -1)
+        }
+
+        private fun parseSpriteDef(sourceLine: Int, basicLineNum: Int?) {
+            advance() // consume SPRITEDEF
+            parseExpression(sourceLine) // id
+            consume(TokenType.COMMA, "Expected ',' between sprite id and size in SPRITEDEF")
+            parseExpression(sourceLine) // size (8 or 16)
+            consume(TokenType.COMMA, "Expected ',' between size and pattern data in SPRITEDEF")
+            parseExpression(sourceLine) // pattern string or expression
+            emit(OpCode.SPRITEDEF, sourceLine = sourceLine, sourceLineNum = basicLineNum ?: -1)
+        }
+
+        private fun parseSprite(sourceLine: Int, basicLineNum: Int?) {
+            advance() // consume SPRITE
+            parseExpression(sourceLine) // id
+            consume(TokenType.COMMA, "Expected ',' between id and X in SPRITE")
+            parseExpression(sourceLine) // X
+            consume(TokenType.COMMA, "Expected ',' between X and Y in SPRITE")
+            parseExpression(sourceLine) // Y
+
+            if (match(TokenType.COMMA)) {
+                parseExpression(sourceLine) // pattern
+            } else {
+                emit(OpCode.PUSH_CONST, argInt = addConstant(BasicValue.NumberVal(-1.0)), sourceLine = sourceLine)
+            }
+
+            if (match(TokenType.COMMA)) {
+                parseExpression(sourceLine) // color
+            } else {
+                emit(OpCode.PUSH_CONST, argInt = addConstant(BasicValue.NumberVal(-1.0)), sourceLine = sourceLine)
+            }
+            emit(OpCode.SPRITE, sourceLine = sourceLine, sourceLineNum = basicLineNum ?: -1)
+        }
+
+        private fun parseSpriteMove(sourceLine: Int, basicLineNum: Int?) {
+            advance() // consume SPRITEMOVE
+            parseExpression(sourceLine) // id
+            consume(TokenType.COMMA, "Expected ',' between id and dx in SPRITEMOVE")
+            parseExpression(sourceLine) // dx
+            consume(TokenType.COMMA, "Expected ',' between dx and dy in SPRITEMOVE")
+            parseExpression(sourceLine) // dy
+            emit(OpCode.SPRITEMOVE, sourceLine = sourceLine, sourceLineNum = basicLineNum ?: -1)
+        }
+
+        private fun parseSpriteShow(sourceLine: Int, basicLineNum: Int?) {
+            advance() // consume SPRITESHOW
+            parseExpression(sourceLine) // id
+            consume(TokenType.COMMA, "Expected ',' between id and visible flag in SPRITESHOW")
+            parseExpression(sourceLine) // visible (0 or 1)
+            emit(OpCode.SPRITESHOW, sourceLine = sourceLine, sourceLineNum = basicLineNum ?: -1)
         }
 
         private fun parseAssignment(sourceLine: Int, basicLineNum: Int?) {
@@ -564,7 +746,7 @@ class BasicCompiler {
 
         private fun isBuiltinFunction(name: String): Boolean {
             return when (name.uppercase(Locale.ROOT)) {
-                "INT", "ABS", "SQR", "RND", "SIN", "COS", "TAN", "LEN", "STR$", "VAL", "CHR$", "ASC", "TAB" -> true
+                "INT", "ABS", "SQR", "RND", "SIN", "COS", "TAN", "LEN", "STR$", "VAL", "CHR$", "ASC", "TAB", "SPRITEHIT" -> true
                 else -> false
             }
         }
@@ -579,6 +761,13 @@ class BasicCompiler {
                     val cIdx = addConstant(BasicValue.NumberVal(1.0))
                     emit(OpCode.PUSH_CONST, argInt = cIdx, sourceLine = sourceLine)
                 }
+            } else if (fn == "SPRITEHIT") {
+                // SPRITEHIT(id1, id2)
+                parseExpression(sourceLine) // id1
+                consume(TokenType.COMMA, "Expected ',' between sprite IDs in SPRITEHIT(id1, id2)")
+                parseExpression(sourceLine) // id2
+                emit(OpCode.SPRITEHIT, sourceLine = sourceLine)
+                return
             } else {
                 parseExpression(sourceLine)
             }

@@ -80,10 +80,28 @@ enum class OpCode {
     PRINT_COMMA,   // pop and output with tab spacing
     PRINT_NEWLINE, // output newline
     INPUT,         // wait for user input from terminal emulator into variable (arg: var index, optional prompt)
-    CLS,           // clear terminal screen
-    COLOR,         // set text color (arg or top of stack)
+    CLS,           // clear terminal screen / graphics screen
+    COLOR,         // set text color / drawing color (arg or top of stack)
     BEEP,          // beep tone / sound cue
     SLEEP,         // delay in ms (pop from stack)
+
+    // Retro Graphics (320x200 canvas)
+    SCREEN,        // pop mode (0 = text, 1 = graphics 320x200)
+    PSET,          // pop color, pop y, pop x
+    DRAW_LINE,     // pop color, pop y2, pop x2, pop y1, pop x1
+    DRAW_RECT,     // pop fill, pop color, pop y2, pop x2, pop y1, pop x1
+    DRAW_CIRCLE,   // pop fill, pop color, pop radius, pop y, pop x
+
+    // 8-Bit Audio Synth
+    SOUND,         // pop waveType, pop durationMs, pop freqHz
+    SFX,           // pop preset id (0..4)
+
+    // Hardware Sprites
+    SPRITEDEF,     // pop data/pattern string, pop size, pop sprite id
+    SPRITE,        // pop color, pop pattern, pop y, pop x, pop sprite id
+    SPRITEMOVE,    // pop dy, pop dx, pop sprite id
+    SPRITESHOW,    // pop visible (0/1), pop sprite id
+    SPRITEHIT,     // pop id2, pop id1, push 1/0 collision bool
 
     // Array / List Operations
     LOAD_ARRAY,    // arg: array name index; pops index expression

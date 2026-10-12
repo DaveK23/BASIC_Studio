@@ -86,6 +86,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -433,10 +434,13 @@ fun BasicStudioApp(viewModel: BasicViewModel) {
 
     // Dialog for APK Export
     if (showExportDialog) {
+        val selectedIconIndex by viewModel.selectedIconIndex.collectAsState()
         ExportApkDialog(
             isBuilding = isApkBuilding,
             exportResult = apkExportResult,
             apkFile = lastExportedApk,
+            selectedIconIndex = selectedIconIndex,
+            onSelectIcon = { viewModel.setSelectedIconIndex(it) },
             onExport = { appName, pkgName ->
                 viewModel.exportApk(context, appName, pkgName)
             },
@@ -635,11 +639,24 @@ fun TerminalScreen(
             }
         }
 
+        val graphicsState by viewModel.graphicsState.collectAsState()
+
+        // If SCREEN mode > 0, show Retro 320x200 Graphics Canvas with Sprites
+        if (graphicsState.mode > 0) {
+            com.example.basic.graphics.RetroGraphicsCanvas(
+                graphicsState = graphicsState,
+                modifier = Modifier
+                    .weight(1.2f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            )
+        }
+
         // Terminal output screen
         LazyColumn(
             state = listState,
             modifier = Modifier
-                .weight(1f)
+                .weight(if (graphicsState.mode > 0) 0.8f else 1f)
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 8.dp)
                 .testTag("terminal_output_list")
@@ -1019,6 +1036,8 @@ fun ExportApkDialog(
     isBuilding: Boolean,
     exportResult: String?,
     apkFile: java.io.File?,
+    selectedIconIndex: Int,
+    onSelectIcon: (Int) -> Unit,
     onExport: (appName: String, packageName: String) -> Unit,
     onInstall: (java.io.File) -> Unit,
     onShare: (java.io.File) -> Unit,
@@ -1040,7 +1059,12 @@ fun ExportApkDialog(
             }
         },
         text = {
-            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 Text(
                     text = "Compiles the active BASIC code into bytecode and packages an installable Android APK with binary manifest, 4-byte zip alignment, and official v1/v2/v3 signatures.",
                     color = Color(0xFF94A3B8),
@@ -1074,6 +1098,69 @@ fun ExportApkDialog(
                             fontFamily = monoFont,
                             modifier = Modifier.padding(start = 4.dp, top = 2.dp)
                         )
+                    }
+                }
+
+                // Launcher Icon Selector Header
+                Text(
+                    text = "Select Launcher Icon (${selectedIconIndex + 1}/8):",
+                    color = TerminalCyan,
+                    fontSize = 12.sp,
+                    fontFamily = monoFont
+                )
+
+                // 8 Default Launcher Icon Options Grid (4 columns x 2 rows)
+                val iconOptions = com.example.basic.apk.RetroIconGenerator.ICONS
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for (row in 0..1) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            for (col in 0..3) {
+                                val idx = row * 4 + col
+                                val iconOpt = iconOptions[idx]
+                                val isSelected = idx == selectedIconIndex
+
+                                Card(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { onSelectIcon(idx) }
+                                        .testTag("launcher_icon_option_$idx"),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (isSelected) Color(0xFF1E293B) else Color(0xFF0F172A)
+                                    ),
+                                    border = BorderStroke(
+                                        width = if (isSelected) 2.dp else 1.dp,
+                                        color = if (isSelected) TerminalAmber else Color(0xFF334155)
+                                    )
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(6.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        // Visual thumbnail bitmap
+                                        val iconBitmap = remember(idx) {
+                                            com.example.basic.apk.RetroIconGenerator.generateIconBitmap(idx, 64)
+                                        }
+                                        androidx.compose.foundation.Image(
+                                            bitmap = iconBitmap.asImageBitmap(),
+                                            contentDescription = iconOpt.name,
+                                            modifier = Modifier.size(36.dp).clip(RoundedCornerShape(6.dp))
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = iconOpt.name,
+                                            color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                                            fontSize = 9.sp,
+                                            fontFamily = monoFont,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 

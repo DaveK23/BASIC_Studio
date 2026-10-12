@@ -87,7 +87,8 @@ object StandaloneApkBuilder {
         context: Context,
         appName: String,
         packageName: String,
-        program: BytecodeProgram
+        program: BytecodeProgram,
+        iconIndex: Int = 0
     ): ApkExportResult {
         val safeName = appName.replace(Regex("[^a-zA-Z0-9_]"), "_").lowercase().ifBlank { "basic_app" }
         val apkFileName = "$safeName.apk"
@@ -132,7 +133,8 @@ object StandaloneApkBuilder {
                 currentPackageName = currentPackageName,
                 targetPackageName = targetPackageName,
                 bytecodeBytes = bytecodeBytes,
-                sourceBytes = sourceBytes
+                sourceBytes = sourceBytes,
+                iconIndex = iconIndex
             )
 
             // Stage 2: ZipAlign 4-byte boundaries on uncompressed entries (Android 11+ requirement)
@@ -235,7 +237,8 @@ object StandaloneApkBuilder {
         currentPackageName: String,
         targetPackageName: String,
         bytecodeBytes: ByteArray,
-        sourceBytes: ByteArray
+        sourceBytes: ByteArray,
+        iconIndex: Int
     ): ApkBuildDiagnostics {
         var assetError: Throwable? = null
 
@@ -250,6 +253,7 @@ object StandaloneApkBuilder {
                 targetPackageName = targetPackageName,
                 bytecodeBytes = bytecodeBytes,
                 sourceBytes = sourceBytes,
+                iconIndex = iconIndex,
                 diagnostics = collector
             )
             return collector.build()
@@ -273,6 +277,7 @@ object StandaloneApkBuilder {
                     targetPackageName = targetPackageName,
                     bytecodeBytes = bytecodeBytes,
                     sourceBytes = sourceBytes,
+                    iconIndex = iconIndex,
                     diagnostics = collector
                 )
                 return collector.build()
@@ -297,6 +302,7 @@ object StandaloneApkBuilder {
         targetPackageName: String,
         bytecodeBytes: ByteArray,
         sourceBytes: ByteArray,
+        iconIndex: Int,
         diagnostics: ApkBuildDiagnosticsCollector
     ) {
         val registry = CaseInsensitiveEntryRegistry()
@@ -319,6 +325,17 @@ object StandaloneApkBuilder {
                             }
 
                             val normalized = CaseInsensitiveEntryRegistry.normalize(rawName)
+                            // If this entry is an existing ic_launcher png or webp, replace it with generated custom icon
+                            if (isLauncherIconEntry(normalized)) {
+                                val customIconBytes = RetroIconGenerator.generateIconPngBytes(iconIndex, getIconSizeForPath(normalized))
+                                if (registry.tryRegister(normalized)) {
+                                    writeEntry(zos, normalized, customIconBytes, isStored = false, diagnostics = diagnostics)
+                                }
+                                zis.closeEntry()
+                                entry = zis.nextEntry
+                                continue
+                            }
+
                             if (!registry.tryRegister(normalized)) {
                                 diagnostics.recordDuplicate(normalized)
                                 zis.closeEntry()
@@ -353,6 +370,8 @@ object StandaloneApkBuilder {
 
                 // Inject compiled BASIC payload (compressed)
                 injectPayload(zos, registry, bytecodeBytes, sourceBytes, diagnostics)
+                // Inject custom launcher icons into mipmap densities
+                injectCustomIcons(zos, registry, iconIndex, diagnostics)
             }
         }
     }
@@ -365,6 +384,7 @@ object StandaloneApkBuilder {
         targetPackageName: String,
         bytecodeBytes: ByteArray,
         sourceBytes: ByteArray,
+        iconIndex: Int,
         diagnostics: ApkBuildDiagnosticsCollector
     ) {
         val registry = CaseInsensitiveEntryRegistry()
@@ -385,6 +405,14 @@ object StandaloneApkBuilder {
                         }
 
                         val normalized = CaseInsensitiveEntryRegistry.normalize(rawName)
+                        if (isLauncherIconEntry(normalized)) {
+                            val customIconBytes = RetroIconGenerator.generateIconPngBytes(iconIndex, getIconSizeForPath(normalized))
+                            if (registry.tryRegister(normalized)) {
+                                writeEntry(zos, normalized, customIconBytes, isStored = false, diagnostics = diagnostics)
+                            }
+                            continue
+                        }
+
                         if (!registry.tryRegister(normalized)) {
                             diagnostics.recordDuplicate(normalized)
                             continue
@@ -415,6 +443,53 @@ object StandaloneApkBuilder {
 
                 // Inject compiled BASIC payload (compressed)
                 injectPayload(zos, registry, bytecodeBytes, sourceBytes, diagnostics)
+                // Inject custom launcher icons into mipmap densities
+                injectCustomIcons(zos, registry, iconIndex, diagnostics)
+            }
+        }
+    }
+
+    private fun isLauncherIconEntry(entryName: String): Boolean {
+        val lower = entryName.lowercase()
+        return (lower.startsWith("res/mipmap") || lower.startsWith("res/drawable")) &&
+                (lower.contains("ic_launcher.png") || lower.contains("ic_launcher.webp") ||
+                 lower.contains("ic_launcher_round.png") || lower.contains("ic_launcher_round.webp"))
+    }
+
+    private fun getIconSizeForPath(path: String): Int {
+        val lower = path.lowercase()
+        return when {
+            lower.contains("xxxhdpi") -> 192
+            lower.contains("xxhdpi") -> 144
+            lower.contains("xhdpi") -> 96
+            lower.contains("hdpi") -> 72
+            lower.contains("mdpi") -> 48
+            else -> 192
+        }
+    }
+
+    private fun injectCustomIcons(
+        zos: ZipOutputStream,
+        registry: CaseInsensitiveEntryRegistry,
+        iconIndex: Int,
+        diagnostics: ApkBuildDiagnosticsCollector
+    ) {
+        val iconDensities = listOf(
+            "res/mipmap-mdpi-v4/ic_launcher.png" to 48,
+            "res/mipmap-hdpi-v4/ic_launcher.png" to 72,
+            "res/mipmap-xhdpi-v4/ic_launcher.png" to 96,
+            "res/mipmap-xxhdpi-v4/ic_launcher.png" to 144,
+            "res/mipmap-xxxhdpi-v4/ic_launcher.png" to 192,
+            "res/mipmap-mdpi-v4/ic_launcher_round.png" to 48,
+            "res/mipmap-hdpi-v4/ic_launcher_round.png" to 72,
+            "res/mipmap-xhdpi-v4/ic_launcher_round.png" to 96,
+            "res/mipmap-xxhdpi-v4/ic_launcher_round.png" to 144,
+            "res/mipmap-xxxhdpi-v4/ic_launcher_round.png" to 192
+        )
+        for ((path, size) in iconDensities) {
+            if (registry.tryRegister(path)) {
+                val pngBytes = RetroIconGenerator.generateIconPngBytes(iconIndex, size)
+                writeEntry(zos, path, pngBytes, isStored = false, diagnostics = diagnostics)
             }
         }
     }

@@ -59,6 +59,18 @@ class BasicViewModel : ViewModel() {
     private val _breakpoints = MutableStateFlow<Set<Int>>(emptySet())
     val breakpoints: StateFlow<Set<Int>> = _breakpoints.asStateFlow()
 
+    private val _graphicsState = MutableStateFlow(com.example.basic.graphics.RetroGraphicsState())
+    val graphicsState: StateFlow<com.example.basic.graphics.RetroGraphicsState> = _graphicsState.asStateFlow()
+
+    val soundSynth = com.example.basic.audio.RetroSoundSynth(viewModelScope)
+
+    private val _selectedIconIndex = MutableStateFlow(0)
+    val selectedIconIndex: StateFlow<Int> = _selectedIconIndex.asStateFlow()
+
+    fun setSelectedIconIndex(index: Int) {
+        _selectedIconIndex.value = index
+    }
+
     private val _lastCompilationError = MutableStateFlow<String?>(null)
     val lastCompilationError: StateFlow<String?> = _lastCompilationError.asStateFlow()
 
@@ -102,7 +114,24 @@ class BasicViewModel : ViewModel() {
             _terminalOutput.value = emptyList()
         },
         onBeep = {
-            playTone(800, 150)
+            soundSynth.playTone(800.0, 120, com.example.basic.audio.WaveType.SQUARE)
+        },
+        onGraphicsStateChanged = { gState ->
+            _graphicsState.value = gState
+        },
+        onSound = { freqHz, durationMs, waveType ->
+            val wType = when (waveType) {
+                0 -> com.example.basic.audio.WaveType.SQUARE
+                1 -> com.example.basic.audio.WaveType.TRIANGLE
+                2 -> com.example.basic.audio.WaveType.SAWTOOTH
+                3 -> com.example.basic.audio.WaveType.SINE
+                4 -> com.example.basic.audio.WaveType.NOISE
+                else -> com.example.basic.audio.WaveType.SQUARE
+            }
+            soundSynth.playTone(freqHz, durationMs, wType)
+        },
+        onSfx = { preset ->
+            soundSynth.playSfx(preset)
         }
     )
 
@@ -210,7 +239,8 @@ class BasicViewModel : ViewModel() {
                     context = context,
                     appName = appName,
                     packageName = packageName,
-                    program = prog
+                    program = prog,
+                    iconIndex = _selectedIconIndex.value
                 )
                 withContext(Dispatchers.Main) {
                     _isApkBuilding.value = false
