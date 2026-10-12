@@ -22,11 +22,11 @@ class BasicPrintConcatenationTest {
         """.trimIndent()
         val program = compiler.compile(code)
 
-        val opcodes = program.instructions.map { it.op }
+        val nonHaltOpcodes = program.instructions.filter { it.op != OpCode.HALT }.map { it.op }
         // Line 10 should emit PRINT_SEMI, not PRINT_NEWLINE
-        assertTrue("Expected PRINT_SEMI in bytecode", opcodes.contains(OpCode.PRINT_SEMI))
-        // Line 30 should end with PRINT
-        assertEquals(OpCode.PRINT, opcodes.last())
+        assertTrue("Expected PRINT_SEMI in bytecode", nonHaltOpcodes.contains(OpCode.PRINT_SEMI))
+        // Line 30 should end with PRINT (standard print with newline)
+        assertEquals(OpCode.PRINT, nonHaltOpcodes.last())
     }
 
     @Test
