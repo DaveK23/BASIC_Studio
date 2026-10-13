@@ -53,4 +53,33 @@ class ApkIconExportTest {
             assertTrue("BG $i must be > 500 bytes", bg.size > 500)
         }
     }
+
+    @Test
+    fun testRunnerBaseApkBundlesUpdatedTerminalAndGraphics() {
+        val candidateFiles = listOf(
+            java.io.File("src/main/assets/runner-base.apk"),
+            java.io.File("app/src/main/assets/runner-base.apk")
+        )
+        val assetApk = candidateFiles.firstOrNull { it.exists() }
+        assertTrue("runner-base.apk must exist in assets", assetApk != null && assetApk.exists())
+
+        var foundAppendChunk = false
+        var foundRetroGraphics = false
+
+        java.util.zip.ZipFile(assetApk!!).use { zip ->
+            val entries = zip.entries()
+            while (entries.hasMoreElements()) {
+                val entry = entries.nextElement()
+                if (entry.name.endsWith(".dex")) {
+                    val bytes = zip.getInputStream(entry).readBytes()
+                    val text = String(bytes, Charsets.ISO_8859_1)
+                    if (text.contains("appendChunk")) foundAppendChunk = true
+                    if (text.contains("RetroGraphicsCanvas")) foundRetroGraphics = true
+                }
+            }
+        }
+
+        assertTrue("runner-base.apk must contain appendChunk for PRINT_SEMI inline concatenation", foundAppendChunk)
+        assertTrue("runner-base.apk must contain RetroGraphicsCanvas for graphics screen mode", foundRetroGraphics)
+    }
 }
