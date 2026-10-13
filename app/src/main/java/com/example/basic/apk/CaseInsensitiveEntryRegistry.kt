@@ -44,10 +44,11 @@ class CaseInsensitiveEntryRegistry {
             return true
         }
         val lower = normalized.lowercase(Locale.ROOT)
-        // Skip existing runner payloads and signature/manifest meta files from template
+        // Skip existing runner payloads, icon generator templates, and signature/manifest meta files from template
         if (lower == "assets/program.basic.bin" ||
             lower == "assets/source.bas" ||
             lower == "assets/runner-base.apk" ||
+            lower.startsWith("assets/icons/") ||
             lower.startsWith("meta-inf/")
         ) {
             return true

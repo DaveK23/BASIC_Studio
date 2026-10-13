@@ -1,5 +1,6 @@
 package com.example.basic.apk
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -7,6 +8,7 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
 import java.io.ByteArrayOutputStream
+import java.io.File
 
 /**
  * Metadata for one of the 8 selectable launcher icons.
@@ -19,7 +21,7 @@ data class LauncherIconOption(
 )
 
 /**
- * Generates custom 8-bit retro styled app launcher icon Bitmaps.
+ * Generates custom 8-bit retro styled app launcher icon Bitmaps and binary adaptive drawables.
  */
 object RetroIconGenerator {
 
@@ -35,14 +37,14 @@ object RetroIconGenerator {
     )
 
     /**
-     * Generates a square PNG bitmap of size [size] for icon option [iconIndex].
+     * Generates a square or circular PNG bitmap of size [size] for icon option [iconIndex].
      */
-    fun generateIconBitmap(iconIndex: Int, size: Int = 192): Bitmap {
+    fun generateIconBitmap(iconIndex: Int, size: Int = 192, isRound: Boolean = false): Bitmap {
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-        // Rounded background squircle
+        // Background color
         val bgColors = listOf(
             0xFF1E293B.toInt(), // 0: Slate Dark
             0xFF064E3B.toInt(), // 1: Emerald Dark
@@ -55,8 +57,13 @@ object RetroIconGenerator {
         )
         val bgColor = bgColors[iconIndex.coerceIn(0, bgColors.lastIndex)]
         paint.color = bgColor
-        val corner = size * 0.22f
-        canvas.drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), corner, corner, paint)
+
+        if (isRound) {
+            canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+        } else {
+            val corner = size * 0.22f
+            canvas.drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), corner, corner, paint)
+        }
 
         // Pixel scale factor
         val p = size / 24f
@@ -75,11 +82,78 @@ object RetroIconGenerator {
         return bitmap
     }
 
-    fun generateIconPngBytes(iconIndex: Int, size: Int = 192): ByteArray {
-        val bmp = generateIconBitmap(iconIndex, size)
+    fun generateIconBytes(iconIndex: Int, size: Int = 192, isRound: Boolean = false, isWebp: Boolean = false): ByteArray {
+        val bmp = generateIconBitmap(iconIndex, size, isRound)
         val stream = ByteArrayOutputStream()
-        bmp.compress(Bitmap.CompressFormat.PNG, 100, stream)
+        if (isWebp) {
+            @Suppress("DEPRECATION")
+            bmp.compress(Bitmap.CompressFormat.WEBP, 100, stream)
+        } else {
+            bmp.compress(Bitmap.CompressFormat.PNG, 100, stream)
+        }
         return stream.toByteArray()
+    }
+
+    fun generateIconPngBytes(iconIndex: Int, size: Int = 192, isRound: Boolean = false): ByteArray {
+        return generateIconBytes(iconIndex, size, isRound, isWebp = false)
+    }
+
+    /**
+     * Retrieves the compiled binary XML VectorDrawable for the adaptive icon foreground.
+     */
+    fun getAdaptiveForegroundBytes(context: Context?, iconIndex: Int): ByteArray {
+        val embedded = RetroIconData.getForegroundBytes(iconIndex)
+        if (embedded.isNotEmpty()) return embedded
+
+        val idx = iconIndex.coerceIn(0, 7)
+        val assetPath = "icons/fg_$idx.bin"
+        try {
+            if (context != null) {
+                context.assets.open(assetPath).use { return it.readBytes() }
+            }
+        } catch (_: Throwable) {}
+        try {
+            val stream = RetroIconGenerator::class.java.classLoader?.getResourceAsStream("assets/$assetPath")
+                ?: RetroIconGenerator::class.java.getResourceAsStream("/$assetPath")
+            if (stream != null) {
+                stream.use { return it.readBytes() }
+            }
+        } catch (_: Throwable) {}
+        try {
+            val file = File("app/src/main/assets/$assetPath").takeIf { it.exists() }
+                ?: File("src/main/assets/$assetPath").takeIf { it.exists() }
+            if (file != null) return file.readBytes()
+        } catch (_: Throwable) {}
+        return ByteArray(0)
+    }
+
+    /**
+     * Retrieves the compiled binary XML VectorDrawable for the adaptive icon background.
+     */
+    fun getAdaptiveBackgroundBytes(context: Context?, iconIndex: Int): ByteArray {
+        val embedded = RetroIconData.getBackgroundBytes(iconIndex)
+        if (embedded.isNotEmpty()) return embedded
+
+        val idx = iconIndex.coerceIn(0, 7)
+        val assetPath = "icons/bg_$idx.bin"
+        try {
+            if (context != null) {
+                context.assets.open(assetPath).use { return it.readBytes() }
+            }
+        } catch (_: Throwable) {}
+        try {
+            val stream = RetroIconGenerator::class.java.classLoader?.getResourceAsStream("assets/$assetPath")
+                ?: RetroIconGenerator::class.java.getResourceAsStream("/$assetPath")
+            if (stream != null) {
+                stream.use { return it.readBytes() }
+            }
+        } catch (_: Throwable) {}
+        try {
+            val file = File("app/src/main/assets/$assetPath").takeIf { it.exists() }
+                ?: File("src/main/assets/$assetPath").takeIf { it.exists() }
+            if (file != null) return file.readBytes()
+        } catch (_: Throwable) {}
+        return ByteArray(0)
     }
 
     private fun drawMicrocomputer(canvas: Canvas, paint: Paint, p: Float, size: Int) {

@@ -270,6 +270,7 @@ object StandaloneApkBuilder {
             try {
                 val collector = ApkBuildDiagnosticsCollector(baseSource = "Installed APK (${installedFile.name})")
                 assembleFromZipFile(
+                    context = context,
                     sourceFile = installedFile,
                     targetZip = targetZip,
                     appName = appName,
@@ -325,9 +326,43 @@ object StandaloneApkBuilder {
                             }
 
                             val normalized = CaseInsensitiveEntryRegistry.normalize(rawName)
+
+                            // Replace adaptive icon foreground with chosen custom theme vector binary
+                            if (normalized.equals("res/drawable/ic_launcher_foreground.xml", ignoreCase = true)) {
+                                val fgBytes = RetroIconGenerator.getAdaptiveForegroundBytes(context, iconIndex)
+                                if (fgBytes.isNotEmpty()) {
+                                    if (registry.tryRegister(normalized)) {
+                                        writeEntry(zos, normalized, fgBytes, isStored = false, diagnostics = diagnostics)
+                                    }
+                                    zis.closeEntry()
+                                    entry = zis.nextEntry
+                                    continue
+                                }
+                            }
+
+                            // Replace adaptive icon background with chosen custom theme vector binary
+                            if (normalized.equals("res/drawable/ic_launcher_background.xml", ignoreCase = true)) {
+                                val bgBytes = RetroIconGenerator.getAdaptiveBackgroundBytes(context, iconIndex)
+                                if (bgBytes.isNotEmpty()) {
+                                    if (registry.tryRegister(normalized)) {
+                                        writeEntry(zos, normalized, bgBytes, isStored = false, diagnostics = diagnostics)
+                                    }
+                                    zis.closeEntry()
+                                    entry = zis.nextEntry
+                                    continue
+                                }
+                            }
+
                             // If this entry is an existing ic_launcher png or webp, replace it with generated custom icon
                             if (isLauncherIconEntry(normalized)) {
-                                val customIconBytes = RetroIconGenerator.generateIconPngBytes(iconIndex, getIconSizeForPath(normalized))
+                                val isRound = normalized.contains("round")
+                                val isWebp = normalized.endsWith(".webp", ignoreCase = true)
+                                val customIconBytes = RetroIconGenerator.generateIconBytes(
+                                    iconIndex = iconIndex,
+                                    size = getIconSizeForPath(normalized),
+                                    isRound = isRound,
+                                    isWebp = isWebp
+                                )
                                 if (registry.tryRegister(normalized)) {
                                     writeEntry(zos, normalized, customIconBytes, isStored = false, diagnostics = diagnostics)
                                 }
@@ -370,13 +405,14 @@ object StandaloneApkBuilder {
 
                 // Inject compiled BASIC payload (compressed)
                 injectPayload(zos, registry, bytecodeBytes, sourceBytes, diagnostics)
-                // Inject custom launcher icons into mipmap densities
-                injectCustomIcons(zos, registry, iconIndex, diagnostics)
+                // Inject custom launcher icons into mipmap densities and adaptive drawables
+                injectCustomIcons(context, zos, registry, iconIndex, diagnostics)
             }
         }
     }
 
     private fun assembleFromZipFile(
+        context: Context,
         sourceFile: File,
         targetZip: File,
         appName: String,
@@ -405,8 +441,38 @@ object StandaloneApkBuilder {
                         }
 
                         val normalized = CaseInsensitiveEntryRegistry.normalize(rawName)
+
+                        // Replace adaptive icon foreground with chosen custom theme vector binary
+                        if (normalized.equals("res/drawable/ic_launcher_foreground.xml", ignoreCase = true)) {
+                            val fgBytes = RetroIconGenerator.getAdaptiveForegroundBytes(context, iconIndex)
+                            if (fgBytes.isNotEmpty()) {
+                                if (registry.tryRegister(normalized)) {
+                                    writeEntry(zos, normalized, fgBytes, isStored = false, diagnostics = diagnostics)
+                                }
+                                continue
+                            }
+                        }
+
+                        // Replace adaptive icon background with chosen custom theme vector binary
+                        if (normalized.equals("res/drawable/ic_launcher_background.xml", ignoreCase = true)) {
+                            val bgBytes = RetroIconGenerator.getAdaptiveBackgroundBytes(context, iconIndex)
+                            if (bgBytes.isNotEmpty()) {
+                                if (registry.tryRegister(normalized)) {
+                                    writeEntry(zos, normalized, bgBytes, isStored = false, diagnostics = diagnostics)
+                                }
+                                continue
+                            }
+                        }
+
                         if (isLauncherIconEntry(normalized)) {
-                            val customIconBytes = RetroIconGenerator.generateIconPngBytes(iconIndex, getIconSizeForPath(normalized))
+                            val isRound = normalized.contains("round")
+                            val isWebp = normalized.endsWith(".webp", ignoreCase = true)
+                            val customIconBytes = RetroIconGenerator.generateIconBytes(
+                                iconIndex = iconIndex,
+                                size = getIconSizeForPath(normalized),
+                                isRound = isRound,
+                                isWebp = isWebp
+                            )
                             if (registry.tryRegister(normalized)) {
                                 writeEntry(zos, normalized, customIconBytes, isStored = false, diagnostics = diagnostics)
                             }
@@ -443,8 +509,8 @@ object StandaloneApkBuilder {
 
                 // Inject compiled BASIC payload (compressed)
                 injectPayload(zos, registry, bytecodeBytes, sourceBytes, diagnostics)
-                // Inject custom launcher icons into mipmap densities
-                injectCustomIcons(zos, registry, iconIndex, diagnostics)
+                // Inject custom launcher icons into mipmap densities and adaptive drawables
+                injectCustomIcons(context, zos, registry, iconIndex, diagnostics)
             }
         }
     }
@@ -469,27 +535,43 @@ object StandaloneApkBuilder {
     }
 
     private fun injectCustomIcons(
+        context: Context,
         zos: ZipOutputStream,
         registry: CaseInsensitiveEntryRegistry,
         iconIndex: Int,
         diagnostics: ApkBuildDiagnosticsCollector
     ) {
-        val iconDensities = listOf(
-            "res/mipmap-mdpi-v4/ic_launcher.png" to 48,
-            "res/mipmap-hdpi-v4/ic_launcher.png" to 72,
-            "res/mipmap-xhdpi-v4/ic_launcher.png" to 96,
-            "res/mipmap-xxhdpi-v4/ic_launcher.png" to 144,
-            "res/mipmap-xxxhdpi-v4/ic_launcher.png" to 192,
-            "res/mipmap-mdpi-v4/ic_launcher_round.png" to 48,
-            "res/mipmap-hdpi-v4/ic_launcher_round.png" to 72,
-            "res/mipmap-xhdpi-v4/ic_launcher_round.png" to 96,
-            "res/mipmap-xxhdpi-v4/ic_launcher_round.png" to 144,
-            "res/mipmap-xxxhdpi-v4/ic_launcher_round.png" to 192
+        // Ensure adaptive foreground vector is registered and written
+        val fgBytes = RetroIconGenerator.getAdaptiveForegroundBytes(context, iconIndex)
+        if (fgBytes.isNotEmpty() && registry.tryRegister("res/drawable/ic_launcher_foreground.xml")) {
+            writeEntry(zos, "res/drawable/ic_launcher_foreground.xml", fgBytes, isStored = false, diagnostics = diagnostics)
+        }
+        // Ensure adaptive background vector is registered and written
+        val bgBytes = RetroIconGenerator.getAdaptiveBackgroundBytes(context, iconIndex)
+        if (bgBytes.isNotEmpty() && registry.tryRegister("res/drawable/ic_launcher_background.xml")) {
+            writeEntry(zos, "res/drawable/ic_launcher_background.xml", bgBytes, isStored = false, diagnostics = diagnostics)
+        }
+
+        val densities = listOf(
+            "mdpi" to 48,
+            "hdpi" to 72,
+            "xhdpi" to 96,
+            "xxhdpi" to 144,
+            "xxxhdpi" to 192
         )
-        for ((path, size) in iconDensities) {
-            if (registry.tryRegister(path)) {
-                val pngBytes = RetroIconGenerator.generateIconPngBytes(iconIndex, size)
-                writeEntry(zos, path, pngBytes, isStored = false, diagnostics = diagnostics)
+        for ((density, size) in densities) {
+            for (ext in listOf("png", "webp")) {
+                val isWebp = ext == "webp"
+                val normalBytes = RetroIconGenerator.generateIconBytes(iconIndex, size, isRound = false, isWebp = isWebp)
+                val roundBytes = RetroIconGenerator.generateIconBytes(iconIndex, size, isRound = true, isWebp = isWebp)
+                val normalPath = "res/mipmap-$density-v4/ic_launcher.$ext"
+                if (registry.tryRegister(normalPath)) {
+                    writeEntry(zos, normalPath, normalBytes, isStored = false, diagnostics = diagnostics)
+                }
+                val roundPath = "res/mipmap-$density-v4/ic_launcher_round.$ext"
+                if (registry.tryRegister(roundPath)) {
+                    writeEntry(zos, roundPath, roundBytes, isStored = false, diagnostics = diagnostics)
+                }
             }
         }
     }

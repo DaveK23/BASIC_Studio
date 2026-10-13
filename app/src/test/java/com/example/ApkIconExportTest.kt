@@ -1,0 +1,56 @@
+package com.example
+
+import com.example.basic.apk.RetroIconData
+import com.example.basic.apk.RetroIconGenerator
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+
+class ApkIconExportTest {
+
+    @Test
+    fun testAdaptiveIconVectorsExistForAllEightChoices() {
+        assertEquals(8, RetroIconGenerator.ICONS.size)
+
+        val foregrounds = mutableListOf<ByteArray>()
+        val backgrounds = mutableListOf<ByteArray>()
+
+        for (i in 0 until 8) {
+            val fg = RetroIconGenerator.getAdaptiveForegroundBytes(null, i)
+            val bg = RetroIconGenerator.getAdaptiveBackgroundBytes(null, i)
+
+            assertTrue("Foreground for icon $i must not be empty", fg.isNotEmpty())
+            assertTrue("Background for icon $i must not be empty", bg.isNotEmpty())
+
+            // Verify RES_XML_TYPE header (0x0003 in little endian)
+            val fgBuf = ByteBuffer.wrap(fg).order(ByteOrder.LITTLE_ENDIAN)
+            val fgType = fgBuf.short.toInt() and 0xFFFF
+            assertEquals("Foreground $i must be compiled Android binary XML (0x0003)", 0x0003, fgType)
+
+            val bgBuf = ByteBuffer.wrap(bg).order(ByteOrder.LITTLE_ENDIAN)
+            val bgType = bgBuf.short.toInt() and 0xFFFF
+            assertEquals("Background $i must be compiled Android binary XML (0x0003)", 0x0003, bgType)
+
+            foregrounds.add(fg)
+            backgrounds.add(bg)
+        }
+
+        // Verify that different icon choices produce distinct binary vectors
+        assertNotEquals("Icon 0 and 1 must have distinct foregrounds", foregrounds[0].size, foregrounds[1].size)
+        assertNotEquals("Icon 1 and 4 must have distinct foregrounds", foregrounds[1].size, foregrounds[4].size)
+        assertNotEquals("Icon 2 and 3 must have distinct foregrounds", foregrounds[2].size, foregrounds[3].size)
+    }
+
+    @Test
+    fun testRetroIconDataDirectAccess() {
+        for (i in 0 until 8) {
+            val fg = RetroIconData.getForegroundBytes(i)
+            val bg = RetroIconData.getBackgroundBytes(i)
+            assertTrue("FG $i must be > 500 bytes", fg.size > 500)
+            assertTrue("BG $i must be > 500 bytes", bg.size > 500)
+        }
+    }
+}
