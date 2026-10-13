@@ -32,23 +32,33 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Redo
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.outlined.Circle
+import com.example.basic.file.BasicFileInfo
+import com.example.basic.file.BasicFileManager
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -161,6 +171,11 @@ fun BasicStudioApp(viewModel: BasicViewModel) {
     var activeTab by remember { mutableStateOf(AppTab.EDITOR) }
     var showSamplesDialog by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
+    var showFileManagerDialog by remember { mutableStateOf(false) }
+
+    val currentFileName by viewModel.currentFileName.collectAsState()
+    val savedFiles by viewModel.savedFiles.collectAsState()
+    val fileMessage by viewModel.fileMessage.collectAsState()
 
     val context = LocalContext.current
     val monoFont = remember {
@@ -172,6 +187,30 @@ fun BasicStudioApp(viewModel: BasicViewModel) {
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
+
+    val openDocumentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            viewModel.loadFromUri(context, it)
+            activeTab = AppTab.EDITOR
+        }
+    }
+
+    val createDocumentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        uri?.let {
+            viewModel.saveToUri(context, it)
+        }
+    }
+
+    LaunchedEffect(fileMessage) {
+        fileMessage?.let { msg ->
+            snackbarHostState.showSnackbar(msg)
+            viewModel.clearFileMessage()
+        }
+    }
 
     LaunchedEffect(uiState.lastCompilationError) {
         uiState.lastCompilationError?.let {
@@ -235,6 +274,21 @@ fun BasicStudioApp(viewModel: BasicViewModel) {
                     containerColor = DarkSurface
                 ),
                 actions = {
+                    // File Manager button
+                    IconButton(
+                        onClick = {
+                            viewModel.refreshSavedFiles(context)
+                            showFileManagerDialog = true
+                        },
+                        modifier = Modifier.testTag("file_manager_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Save,
+                            contentDescription = stringResource(R.string.file_manager),
+                            tint = TerminalCyan
+                        )
+                    }
+
                     // Samples button
                     IconButton(
                         onClick = { showSamplesDialog = true },
@@ -415,7 +469,14 @@ fun BasicStudioApp(viewModel: BasicViewModel) {
                 AppTab.EDITOR -> EditorScreen(
                     viewModel = viewModel,
                     monoFont = monoFont,
-                    currentDebugLine = if (uiState.vmState == VmState.PAUSED_DEBUG) currentLine else null
+                    currentDebugLine = if (uiState.vmState == VmState.PAUSED_DEBUG) currentLine else null,
+                    onOpenFilePicker = {
+                        openDocumentLauncher.launch(arrayOf("text/*", "*/*"))
+                    },
+                    onOpenFileManager = {
+                        viewModel.refreshSavedFiles(context)
+                        showFileManagerDialog = true
+                    }
                 )
                 AppTab.TERMINAL -> TerminalScreen(
                     viewModel = viewModel,
@@ -481,23 +542,155 @@ fun BasicStudioApp(viewModel: BasicViewModel) {
             monoFont = monoFont
         )
     }
+
+    // Dialog for File Management
+    if (showFileManagerDialog) {
+        FileManagerDialog(
+            currentFileName = currentFileName,
+            savedFiles = savedFiles,
+            onSaveToDevice = { name ->
+                viewModel.saveCurrentProgram(context, name)
+            },
+            onSaveAsSaf = { name ->
+                val safeName = if (name.endsWith(".bas", ignoreCase = true) || name.endsWith(".txt", ignoreCase = true)) name else "$name.bas"
+                createDocumentLauncher.launch(safeName)
+            },
+            onOpenFromSaf = {
+                openDocumentLauncher.launch(arrayOf("text/*", "*/*"))
+            },
+            onLoadFile = { fileInfo ->
+                viewModel.loadProgramFile(fileInfo.file)
+                activeTab = AppTab.EDITOR
+                showFileManagerDialog = false
+            },
+            onShareFile = { fileInfo ->
+                BasicFileManager.shareProgramFile(context, fileInfo.file)
+            },
+            onDeleteFile = { fileInfo ->
+                viewModel.deleteProgramFile(context, fileInfo.file)
+            },
+            onNewProgram = {
+                viewModel.newProgram()
+                activeTab = AppTab.EDITOR
+                showFileManagerDialog = false
+            },
+            onDismiss = { showFileManagerDialog = false },
+            monoFont = monoFont
+        )
+    }
 }
 
 @Composable
 fun EditorScreen(
     viewModel: BasicViewModel,
     monoFont: FontFamily,
-    currentDebugLine: Int?
+    currentDebugLine: Int?,
+    onOpenFilePicker: () -> Unit = {},
+    onOpenFileManager: () -> Unit = {}
 ) {
     val code by viewModel.sourceCode.collectAsState()
     val breakpoints by viewModel.breakpoints.collectAsState()
     val lines = remember(code) { code.lines() }
+    val currentFileName by viewModel.currentFileName.collectAsState()
+    val context = LocalContext.current
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(TerminalBg)
     ) {
+        // File bar
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("editor_file_bar"),
+            color = Color(0xFF0F172A),
+            border = BorderStroke(1.dp, CardBorder)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onOpenFileManager() }
+                        .padding(vertical = 4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Description,
+                        contentDescription = null,
+                        tint = TerminalCyan,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = currentFileName,
+                        color = Color.White,
+                        fontFamily = monoFont,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // New Button
+                    IconButton(
+                        onClick = { viewModel.newProgram() },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .testTag("editor_new_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = stringResource(R.string.new_program),
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    // Save Button
+                    IconButton(
+                        onClick = { viewModel.saveCurrentProgram(context) },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .testTag("editor_save_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Save,
+                            contentDescription = stringResource(R.string.save_action),
+                            tint = TerminalGreen,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    // Files Button
+                    IconButton(
+                        onClick = onOpenFileManager,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .testTag("editor_files_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FolderOpen,
+                            contentDescription = stringResource(R.string.file_manager),
+                            tint = TerminalAmber,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+        }
+
         // Quick syntax helper toolbar
         Row(
             modifier = Modifier
@@ -1014,6 +1207,306 @@ fun DebuggerScreen(
             }
         }
     }
+}
+
+@Composable
+fun FileManagerDialog(
+    currentFileName: String,
+    savedFiles: List<BasicFileInfo>,
+    onSaveToDevice: (String) -> Unit,
+    onSaveAsSaf: (String) -> Unit,
+    onOpenFromSaf: () -> Unit,
+    onLoadFile: (BasicFileInfo) -> Unit,
+    onShareFile: (BasicFileInfo) -> Unit,
+    onDeleteFile: (BasicFileInfo) -> Unit,
+    onNewProgram: () -> Unit,
+    onDismiss: () -> Unit,
+    monoFont: FontFamily
+) {
+    var fileNameInput by remember(currentFileName) { mutableStateOf(currentFileName) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.FolderOpen,
+                    contentDescription = null,
+                    tint = TerminalCyan,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.file_manager),
+                    fontFamily = monoFont,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    fontSize = 18.sp
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 440.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                // Section: Save Program
+                Text(
+                    text = "SAVE PROGRAM AS TEXT FILE",
+                    fontFamily = monoFont,
+                    color = TerminalCyan,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = fileNameInput,
+                    onValueChange = { fileNameInput = it },
+                    label = { Text(stringResource(R.string.filename_label), fontSize = 11.sp) },
+                    textStyle = TextStyle(fontFamily = monoFont, fontSize = 13.sp, color = Color.White),
+                    singleLine = true,
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color(0xFF0F172A),
+                        unfocusedContainerColor = Color(0xFF0F172A),
+                        focusedIndicatorColor = TerminalCyan,
+                        unfocusedIndicatorColor = CardBorder,
+                        focusedLabelColor = TerminalCyan,
+                        unfocusedLabelColor = Color(0xFF94A3B8)
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("file_name_input")
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = { onSaveToDevice(fileNameInput) },
+                        colors = ButtonDefaults.buttonColors(containerColor = TerminalGreen),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("save_file_button")
+                    ) {
+                        Icon(Icons.Default.Save, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = stringResource(R.string.save_action),
+                            color = Color.Black,
+                            fontFamily = monoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = { onSaveAsSaf(fileNameInput) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("save_as_saf_button")
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = null, tint = TerminalCyan, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = stringResource(R.string.save_as_action),
+                            color = TerminalCyan,
+                            fontFamily = monoFont,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Section: Device / SAF Open & New
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilledTonalButton(
+                        onClick = onOpenFromSaf,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("open_saf_button"),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = Color(0xFF1E293B),
+                            contentColor = TerminalAmber
+                        )
+                    ) {
+                        Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = stringResource(R.string.open_file_action),
+                            fontFamily = monoFont,
+                            fontSize = 11.sp
+                        )
+                    }
+
+                    FilledTonalButton(
+                        onClick = onNewProgram,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("new_program_button"),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = Color(0xFF1E293B),
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = stringResource(R.string.new_program),
+                            fontFamily = monoFont,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Section: Saved on Device
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = stringResource(R.string.saved_programs).uppercase(),
+                        fontFamily = monoFont,
+                        color = TerminalAmber,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "${savedFiles.size} files",
+                        fontFamily = monoFont,
+                        color = Color(0xFF94A3B8),
+                        fontSize = 11.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                if (savedFiles.isEmpty()) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.no_saved_programs),
+                            color = Color(0xFF94A3B8),
+                            fontFamily = monoFont,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+                } else {
+                    savedFiles.forEach { fileInfo ->
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .testTag("file_item_${fileInfo.name}")
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .padding(8.dp)
+                                    .fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = fileInfo.name,
+                                        color = TerminalCyan,
+                                        fontFamily = monoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "${fileInfo.formattedSize}  •  ${fileInfo.formattedDate}",
+                                        color = Color(0xFF94A3B8),
+                                        fontFamily = monoFont,
+                                        fontSize = 10.sp
+                                    )
+                                }
+
+                                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    // Load Button
+                                    IconButton(
+                                        onClick = { onLoadFile(fileInfo) },
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .testTag("load_file_button_${fileInfo.name}")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.PlayArrow,
+                                            contentDescription = "Load ${fileInfo.name}",
+                                            tint = TerminalGreen,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+
+                                    // Share Button
+                                    IconButton(
+                                        onClick = { onShareFile(fileInfo) },
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .testTag("share_file_button_${fileInfo.name}")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Share,
+                                            contentDescription = "Share ${fileInfo.name}",
+                                            tint = TerminalCyan,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+
+                                    // Delete Button
+                                    IconButton(
+                                        onClick = { onDeleteFile(fileInfo) },
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .testTag("delete_file_button_${fileInfo.name}")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Delete ${fileInfo.name}",
+                                            tint = Color(0xFFEF4444),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.testTag("close_file_dialog_button")
+            ) {
+                Text(
+                    text = "Close",
+                    fontFamily = monoFont,
+                    color = TerminalCyan
+                )
+            }
+        },
+        containerColor = DarkSurface
+    )
 }
 
 @Composable

@@ -21,6 +21,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.net.Uri
+import com.example.basic.file.BasicFileInfo
+import com.example.basic.file.BasicFileManager
 import java.io.File
 
 data class IdeUiState(
@@ -82,6 +85,15 @@ class BasicViewModel : ViewModel() {
 
     private val _lastExportedApk = MutableStateFlow<File?>(null)
     val lastExportedApk: StateFlow<File?> = _lastExportedApk.asStateFlow()
+
+    private val _currentFileName = MutableStateFlow("untitled.bas")
+    val currentFileName: StateFlow<String> = _currentFileName.asStateFlow()
+
+    private val _savedFiles = MutableStateFlow<List<BasicFileInfo>>(emptyList())
+    val savedFiles: StateFlow<List<BasicFileInfo>> = _savedFiles.asStateFlow()
+
+    private val _fileMessage = MutableStateFlow<String?>(null)
+    val fileMessage: StateFlow<String?> = _fileMessage.asStateFlow()
 
     private var toneGenerator: ToneGenerator? = null
 
@@ -235,6 +247,97 @@ class BasicViewModel : ViewModel() {
     fun loadCode(code: String) {
         _sourceCode.value = code
         compileCurrentCode()
+    }
+
+    fun setCurrentFileName(name: String) {
+        _currentFileName.value = BasicFileManager.sanitizeFileName(name)
+    }
+
+    fun clearFileMessage() {
+        _fileMessage.value = null
+    }
+
+    fun refreshSavedFiles(context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val list = BasicFileManager.listSavedPrograms(context)
+            withContext(Dispatchers.Main) {
+                _savedFiles.value = list
+            }
+        }
+    }
+
+    fun saveCurrentProgram(context: Context, customName: String? = null): Boolean {
+        return try {
+            val nameToUse = customName?.takeIf { it.isNotBlank() } ?: _currentFileName.value
+            val savedInfo = BasicFileManager.saveProgram(context, nameToUse, _sourceCode.value)
+            _currentFileName.value = savedInfo.name
+            _fileMessage.value = "Saved: ${savedInfo.name} (${savedInfo.formattedSize})"
+            refreshSavedFiles(context)
+            true
+        } catch (e: Exception) {
+            _fileMessage.value = "Save failed: ${e.message}"
+            false
+        }
+    }
+
+    fun loadProgramFile(file: File): Boolean {
+        return try {
+            val code = BasicFileManager.loadProgram(file)
+            _currentFileName.value = file.name
+            loadCode(code)
+            _fileMessage.value = "Loaded: ${file.name}"
+            true
+        } catch (e: Exception) {
+            _fileMessage.value = "Load failed: ${e.message}"
+            false
+        }
+    }
+
+    fun deleteProgramFile(context: Context, file: File): Boolean {
+        return try {
+            val success = BasicFileManager.deleteProgram(file)
+            if (success) {
+                _fileMessage.value = "Deleted: ${file.name}"
+                refreshSavedFiles(context)
+            } else {
+                _fileMessage.value = "Failed to delete: ${file.name}"
+            }
+            success
+        } catch (e: Exception) {
+            _fileMessage.value = "Delete error: ${e.message}"
+            false
+        }
+    }
+
+    fun loadFromUri(context: Context, uri: Uri): Boolean {
+        return try {
+            val (name, code) = BasicFileManager.readFromUri(context, uri)
+            _currentFileName.value = name
+            loadCode(code)
+            _fileMessage.value = "Loaded from file: $name"
+            true
+        } catch (e: Exception) {
+            _fileMessage.value = "Failed reading file: ${e.message}"
+            false
+        }
+    }
+
+    fun saveToUri(context: Context, uri: Uri): Boolean {
+        return try {
+            BasicFileManager.writeToUri(context, uri, _sourceCode.value)
+            _fileMessage.value = "Saved successfully to device storage"
+            true
+        } catch (e: Exception) {
+            _fileMessage.value = "Failed writing file: ${e.message}"
+            false
+        }
+    }
+
+    fun newProgram() {
+        val defaultTemplate = "10 REM BASIC Program\n20 PRINT \"HELLO WORLD\"\n30 END"
+        _currentFileName.value = "untitled.bas"
+        loadCode(defaultTemplate)
+        _fileMessage.value = "Created new program"
     }
 
     fun exportApk(context: Context, appName: String, packageName: String) {

@@ -32,4 +32,16 @@
     <string name="call_stack">Call Stack / GOSUB</string>
     <string name="variables">Variables Watch</string>
     <string name="ip_label">Instruction Pointer</string>
+    <string name="file_manager">File Manager</string>
+    <string name="save_action">Save</string>
+    <string name="save_as_action">Save As…</string>
+    <string name="open_action">Open</string>
+    <string name="open_file_action">Open File…</string>
+    <string name="share_file_action">Share File</string>
+    <string name="delete_action">Delete</string>
+    <string name="filename_label">Filename (.bas)</string>
+    <string name="saved_programs">Saved Programs</string>
+    <string name="no_saved_programs">No saved programs found on device.</string>
+    <string name="save_to_device">Save to Device</string>
+    <string name="load_from_device">Load from Device</string>
 </resources>
