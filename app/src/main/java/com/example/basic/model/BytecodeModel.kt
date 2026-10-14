@@ -132,7 +132,12 @@ data class Instruction(
             OpCode.COLOR -> " #$argInt"
             else -> ""
         }
-        val lineInfo = if (sourceLine > 0) " (line $sourceLine)" else ""
+        val lineInfo = when {
+            sourceLine > 0 && sourceLineNum > 0 -> " (line $sourceLine / #$sourceLineNum)"
+            sourceLine > 0 -> " (line $sourceLine)"
+            sourceLineNum > 0 -> " (#$sourceLineNum)"
+            else -> ""
+        }
         return String.format("%04d: %-14s%-16s%s", index, op.name, argDisplay, lineInfo)
     }
 }

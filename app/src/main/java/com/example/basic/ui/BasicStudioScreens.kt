@@ -227,6 +227,13 @@ fun BasicStudioApp(viewModel: BasicViewModel) {
         }
     }
 
+    // Auto-switch to Debugger when a breakpoint is hit
+    LaunchedEffect(Unit) {
+        viewModel.breakpointHitEvent.collect {
+            activeTab = AppTab.DEBUGGER
+        }
+    }
+
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
@@ -432,7 +439,7 @@ fun BasicStudioApp(viewModel: BasicViewModel) {
                 NavigationBarItem(
                     selected = activeTab == AppTab.BYTECODE,
                     onClick = {
-                        viewModel.compileCurrentCode()
+                        viewModel.ensureBytecodeCompiled(resetVm = false)
                         activeTab = AppTab.BYTECODE
                     },
                     icon = { Icon(Icons.Default.Memory, contentDescription = stringResource(R.string.bytecode_tab)) },
@@ -983,6 +990,15 @@ fun BytecodeScreen(
 ) {
     val program by viewModel.compiledProgram.collectAsState()
     val compilationError by viewModel.lastCompilationError.collectAsState()
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(currentIp, program) {
+        val p = program
+        if (p != null && currentIp in 0 until p.instructions.size) {
+            val targetIndex = maxOf(0, currentIp - 2)
+            listState.animateScrollToItem(targetIndex)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -1019,6 +1035,7 @@ fun BytecodeScreen(
             )
 
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .testTag("bytecode_list")
@@ -1100,26 +1117,14 @@ fun DebuggerScreen(
                     )
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = { viewModel.stepLine() },
-                        enabled = vmState == VmState.PAUSED_DEBUG,
-                        modifier = Modifier.testTag("debugger_step_button")
-                    ) {
-                        Icon(Icons.Default.SkipNext, contentDescription = null, tint = TerminalCyan)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Step", fontFamily = monoFont, color = TerminalCyan)
-                    }
-
-                    OutlinedButton(
-                        onClick = { viewModel.resumeExecution() },
-                        enabled = vmState == VmState.PAUSED_DEBUG,
-                        modifier = Modifier.testTag("debugger_resume_button")
-                    ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = TerminalGreen)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Continue", fontFamily = monoFont, color = TerminalGreen)
-                    }
+                OutlinedButton(
+                    onClick = { viewModel.resumeExecution() },
+                    enabled = vmState == VmState.PAUSED_DEBUG,
+                    modifier = Modifier.testTag("debugger_resume_button")
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = TerminalGreen)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Continue", fontFamily = monoFont, color = TerminalGreen)
                 }
             }
         }

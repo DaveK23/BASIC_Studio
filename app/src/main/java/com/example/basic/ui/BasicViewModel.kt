@@ -15,8 +15,11 @@ import com.example.basic.vm.CallFrame
 import com.example.basic.vm.TerminalLine
 import com.example.basic.vm.VmState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -95,6 +98,9 @@ class BasicViewModel : ViewModel() {
     private val _fileMessage = MutableStateFlow<String?>(null)
     val fileMessage: StateFlow<String?> = _fileMessage.asStateFlow()
 
+    private val _breakpointHitEvent = MutableSharedFlow<Int>(extraBufferCapacity = 1)
+    val breakpointHitEvent: SharedFlow<Int> = _breakpointHitEvent.asSharedFlow()
+
     private var toneGenerator: ToneGenerator? = null
 
     init {
@@ -144,16 +150,25 @@ class BasicViewModel : ViewModel() {
         },
         onSfx = { preset ->
             soundSynth.playSfx(preset)
+        },
+        onBreakpointHit = { line ->
+            _breakpointHitEvent.tryEmit(line)
         }
     )
 
-    fun compileCurrentCode(): Boolean {
+    fun ensureBytecodeCompiled(resetVm: Boolean = false): Boolean {
+        if (!resetVm && _compiledProgram.value != null && vm.program != null && (vm.state == VmState.RUNNING || vm.state == VmState.PAUSED_DEBUG || vm.state == VmState.WAITING_FOR_INPUT)) {
+            return true
+        }
+
         return try {
             val program = compiler.compile(_sourceCode.value)
             _compiledProgram.value = program
             _lastCompilationError.value = null
             _uiState.value = _uiState.value.copy(lastCompilationError = null)
-            vm.loadProgram(program)
+            if (resetVm || vm.program == null || vm.state == VmState.IDLE || vm.state == VmState.TERMINATED) {
+                vm.loadProgram(program)
+            }
             true
         } catch (e: Exception) {
             _compiledProgram.value = null
@@ -164,6 +179,10 @@ class BasicViewModel : ViewModel() {
         }
     }
 
+    fun compileCurrentCode(): Boolean {
+        return ensureBytecodeCompiled(resetVm = true)
+    }
+
     fun runProgram() {
         if (!compileCurrentCode()) return
         _terminalOutput.value = listOf(
@@ -171,7 +190,7 @@ class BasicViewModel : ViewModel() {
             TerminalLine("RUN", colorIndex = 0, endsWithNewline = true)
         )
         viewModelScope.launch(Dispatchers.Default) {
-            vm.execute(debug = false)
+            vm.execute(debug = vm.breakpoints.isNotEmpty())
         }
     }
 
@@ -209,7 +228,7 @@ class BasicViewModel : ViewModel() {
 
     fun resumeExecution() {
         viewModelScope.launch(Dispatchers.Default) {
-            vm.execute(debug = vm.isDebugMode)
+            vm.execute(debug = true)
         }
     }
 

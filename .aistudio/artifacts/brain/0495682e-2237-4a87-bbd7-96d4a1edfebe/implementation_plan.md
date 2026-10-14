@@ -1,124 +1,108 @@
-# BASIC Interpreter Execution Control Toolbar Plan
+# Fix Debugger Breakpoints, Superfluous Step Button, and Bytecode Sync
 
-A dedicated, persistent execution control toolbar featuring **Step**, **Pause**, and **Stop** controls docked directly above the navigation tabs, enabling users to inspect and steer BASIC program flow seamlessly across the code editor, terminal, graphics canvas, and debugger.
-
-## User Review & Critical Decisions
-
-> [!IMPORTANT]
-> The following architectural decisions were confirmed via Phase 1 clarification:
-> - **Toolbar Placement**: Dedicated execution control bar docked above the bottom navigation tabs, remaining readily accessible across all active tabs (Editor, Terminal, Debugger, Bytecode).
-> - **Stepping Granularity**: Step by source code line — pressing **Step** executes all underlying bytecode instructions until the interpreter reaches the next source line or completes execution.
-> - **Pause Behavior**: Pressing **Pause** halts execution cooperatively, updates variables and instruction pointers, and automatically switches active view to the **Debugger** tab for immediate inspection.
+Resolves three core debugging and navigation issues in BASIC Studio:
+1. **Breakpoints Not Working / Resume Lockup**: Fixes breakpoint detection in the VM so breakpoints work reliably during both Run and Debug, matches both editor source lines (1, 2, 3...) and BASIC program lines (10, 20, 30...), avoids getting trapped on the same line upon Resume, and automatically switches to the Debugger tab when a breakpoint is hit.
+2. **Superfluous Step Button Removal**: Removes the redundant, non-functional "Step" button in `DebuggerScreen`, consolidating step execution into the dedicated execution controls toolbar.
+3. **Bytecode View Persistence & Real-Time Sync**: Prevents switching to the Bytecode tab from resetting the running/paused program back to the beginning, maintains current instruction pointer and execution state, and auto-scrolls the bytecode disassembly list to keep the active instruction centered and in sync with source code.
 
 ---
 
-## 1. Overview & Core Concept
+## User Review & Clarified Decisions
 
-- **What It Does**: Provides live playback and stepping controls for the embedded BASIC interpreter. Users can start, single-step line-by-line, pause at any moment to inspect memory/variables in the debugger, resume execution, or abort safely.
-- **Target Audience / Persona**: Developers, retro computing enthusiasts, and students writing games and algorithms who need fine-grained debugging and control over long-running loops or animations.
-- **Key Value**: Replaces clumsy all-or-nothing execution with interactive execution control. Eliminates the need to switch tabs or guess where an infinite loop is hanging.
-
----
-
-## 2. User Experience & Visual Design
-
-### Key User Flows
-1. **Normal Run to Pause**:
-   - User writes or runs a BASIC loop (e.g. game animation or sorting algorithm).
-   - In the execution toolbar, user taps **Pause** (amber button).
-   - Execution yields immediately, the app auto-switches to the **Debugger** tab, and highlights the current executing line and variables.
-2. **Line Stepping from Zero State / Pause**:
-   - User taps **Step** (cyan button) from IDLE, PAUSED, or RUNNING state.
-   - If program is not running, it compiles and steps through the first executable line.
-   - If paused, it executes until the next distinct source line, updating the highlighted line in both the Editor and Debugger watch tables.
-3. **Resume / Continue**:
-   - While paused, the toolbar highlights a **Resume** action (or Play toggle) allowing the user to continue full-speed execution.
-4. **Immediate Stop**:
-   - User taps **Stop** (crimson button) to cancel pending inputs, audio playback, or active execution, returning the system to `TERMINATED` / `IDLE` state.
-
-### Visual Identity & Theme
-- **Retro-Cyber Deck Aesthetic**:
-  - Surface: `DarkSurface` (`#131B2E`) with subtle borders (`#1E293B`) matching the retro terminal CRT style.
-  - Button styling: Pill-shaped Material 3 buttons with high-contrast status accents:
-    - **Step**: Terminal Cyan (`#38BDF8`) with `Icons.Default.SkipNext` and "STEP" monospace badge.
-    - **Pause / Resume**: Amber (`#FBBF24`) when running (`Icons.Default.Pause`), Green (`#4ADE80`) when paused (`Icons.Default.PlayArrow`).
-    - **Stop**: Crimson (`#EF4444`) with `Icons.Default.Stop`.
-  - State Indicator: Monospace status badge (`RUNNING`, `PAUSED`, `IDLE`, `INPUT`) with glowing status dot.
-- **Placement & Safe Insets**:
-  - Docked directly above `NavigationBar` in `Scaffold(bottomBar = { Column { ExecutionToolbar(...); NavigationBar(...) } })`.
-  - Maintains strict 48.dp minimum touch target height with tactile haptic/ripple feedback.
+> [!NOTE]
+> Based on the Phase 1 questionnaire responses:
+> - **Navigation on Breakpoint**: Automatically switch to the **Debugger** tab when a breakpoint is hit so variables, call stack, and line pointers are immediately visible.
+> - **Bytecode View Scrolling**: Automatically scroll the bytecode disassembly list to keep the currently executing instruction centered and visible.
+> - **Breakpoint Addressing**: Support matching both 1-based editor source line numbers (`1, 2, 3...`) and BASIC numbered lines (`10, 20, 30...`).
 
 ---
 
-## 3. Key Product Decisions & Trade-Offs
+## Proposed Changes
 
-- **Decision 1: Source-Line Stepping vs. Opcode Stepping**
-  - *Chosen Approach*: Step by source line (`stepLine()`). It runs micro-instructions until the next positive source line number is reached or program halts.
-  - *Why*: BASIC programmers reason in terms of statements (`10 FOR I = 1 TO 10`, `20 PRINT I`), not raw stack operations (`PUSH_CONST`, `LOAD_VAR`).
-  - *Alternative Considered*: Raw bytecode stepping (reserved for the Bytecode tab and low-level disassembly).
-- **Decision 2: Seamless Tab Switching on Pause**
-  - *Chosen Approach*: When **Pause** is triggered, state moves to `PAUSED_DEBUG` and `activeTab` switches automatically to `AppTab.DEBUGGER` so variables and call stack are instantly visible.
-  - *Why*: Reduces cognitive friction and multiple manual navigation taps when hunting bugs.
-- **Decision 3: Dedicated Bar vs. Header Actions**
-  - *Chosen Approach*: Dedicated bottom bar dock.
-  - *Why*: Top bar space is already occupied by app title, Samples, Export APK, and screen modes. A bottom dock places playback controls within easy one-handed thumb reach on mobile devices.
+### 1. Breakpoint Execution & VM Engine (`BasicVirtualMachine.kt`, `BasicViewModel.kt`)
+
+#### Problem Analysis:
+- `vm.execute(debug = false)` in `runProgram()` explicitly ignored breakpoints because `isDebugMode` was false.
+- In `execute()`, breakpoint check only checked `breakpoints.contains(currentLine)`. If a user set a breakpoint on BASIC line `20` (e.g. `20 PRINT "HI"`), or clicked line 2 in the editor, `sourceLineNum` was never checked against breakpoints.
+- When paused at a breakpoint on line `L`, resuming called `execute()` with `ip` still at the first instruction of line `L`. The while-loop immediately triggered `breakpoints.contains(currentLine)` on iteration 0 without executing any instruction, causing an infinite pause lockup on Resume.
+- Multiple micro-instructions for the same source statement repeatedly triggered breakpoints if stepping or continuing.
+
+#### Fix:
+- In `BasicVirtualMachine`:
+  - Support both `instruction.sourceLine` and `instruction.sourceLineNum` when checking breakpoints:
+    ```kotlin
+    fun isAtBreakpoint(inst: Instruction): Boolean {
+        if (breakpoints.isEmpty()) return false
+        if (breakpoints.contains(inst.sourceLine)) return true
+        if (inst.sourceLineNum > 0 && breakpoints.contains(inst.sourceLineNum)) return true
+        if (breakpoints.contains(ip)) return true
+        return false
+    }
+    ```
+  - Introduce `private var lastBreakpointLineHit: Int = -1` to track the line where the breakpoint triggered.
+  - When entering `execute()`, if resuming from `lastBreakpointLineHit`, execute past the current line before checking the breakpoint on that same line again.
+  - Check breakpoints during execution regardless of whether started via `runProgram()` or `startDebugging()` if breakpoints are set, or ensure `runProgram()` enables breakpoint checking when breakpoints are configured.
+  - In `BasicViewModel`, add an event / state flow for `onBreakpointHit` or observe `VmState.PAUSED_DEBUG` caused by breakpoint to trigger tab switching.
 
 ---
 
-## 4. Technical Architecture & Data Strategy
+### 2. Tab Navigation & Superfluous Step Button (`BasicStudioScreens.kt`)
 
-### Component Hierarchy & Interaction Flow
+#### Fix:
+- **Remove Superfluous Step Button**:
+  - In `DebuggerScreen`, remove the redundant `OutlinedButton` ("debugger_step_button") near the top. The global `ExecutionToolbar` docked at the bottom already handles Step, Pause/Resume, and Stop consistently across all tabs.
+  - Retain or polish the IP/Source Line indicator card and "Continue" button in `DebuggerScreen`.
+- **Auto-Switch to Debugger on Breakpoint**:
+  - In `BasicStudioApp`, observe `vmState` or breakpoint event: when `vmState` transitions from `RUNNING` to `PAUSED_DEBUG` due to a breakpoint or pause, automatically update `activeTab = AppTab.DEBUGGER`.
 
-```
-┌────────────────────────────────────────────────────────┐
-│                   Scaffold Layout                      │
-│                                                        │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  TopAppBar (Title, Samples, Export APK)          │  │
-│  └──────────────────────────────────────────────────┘  │
-│                                                        │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  Content Area (Active Tab)                       │  │
-│  │  [ Editor | Terminal / Screen | Debug | Bytecode]│  │
-│  └──────────────────────────────────────────────────┘  │
-│                                                        │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  ExecutionToolbar (Step, Pause/Resume, Stop)     │  │
-│  │  • Status badge (RUNNING / PAUSED / IDLE)        │  │
-│  │  • Line Stepper (SkipNext)                       │  │
-│  │  • Pause / Resume toggle                         │  │
-│  │  • Terminate (Stop)                              │  │
-│  └──────────────────────────────────────────────────┘  │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  NavigationBar (Bottom tabs)                     │  │
-│  └──────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────┘
-```
+---
 
-### State Transitions
+### 3. Bytecode View Non-Resetting & Sync (`BasicViewModel.kt`, `BasicStudioScreens.kt`)
 
-```
-   ┌───────────┐         Step / Run          ┌───────────────┐
-   │   IDLE    │ ──────────────────────────> │    RUNNING    │
-   └───────────┘                             └───────────────┘
-         ▲                                           │
-         │ Stop                                      │ Pause
-         │                                           ▼
-   ┌───────────┐         Resume              ┌───────────────┐
-   │TERMINATED │ <────────────────────────── │ PAUSED_DEBUG  │
-   └───────────┘        (or Stop)            └───────────────┘
-                                                │       ▲
-                                                └──Step─┘
-```
+#### Problem Analysis:
+- In `BasicStudioScreens.kt`:
+  ```kotlin
+  NavigationBarItem(
+      selected = activeTab == AppTab.BYTECODE,
+      onClick = {
+          viewModel.compileCurrentCode()
+          activeTab = AppTab.BYTECODE
+      }
+  )
+  ```
+  `viewModel.compileCurrentCode()` compiled the code and called `vm.loadProgram(program)`.
+  `vm.loadProgram()` invoked `reset()`, wiping `ip = 0`, variables, call stack, and halting active execution.
 
-### Virtual Machine & ViewModel Additions
-- **`BasicVirtualMachine.kt`**:
-  - `isPauseRequested: Boolean` flag checked inside the cooperative execution loop.
-  - `fun pause()`: sets flag and updates state to `VmState.PAUSED_DEBUG`.
-  - `suspend fun stepLine(): Boolean`: advances until source line changes.
-- **`BasicViewModel.kt`**:
-  - `fun pauseProgram()`: invokes `vm.pause()`.
-  - `fun stepLine()`: compiles if needed, runs `vm.stepLine()`, and refreshes variables and call stack.
-  - `fun resumeExecution()`: resumes `vm.execute(debug = true)`.
-- **`BasicStudioScreens.kt`**:
-  - `ExecutionToolbar` composable with clear visual styling and test tags (`testTag("toolbar_step")`, `testTag("toolbar_pause")`, `testTag("toolbar_stop")`, `testTag("toolbar_resume")`).
+#### Fix:
+- Separate bytecode generation/inspection from VM reset:
+  - Add `viewModel.ensureBytecodeCompiled(resetVm: Boolean = false)`:
+    - If `_compiledProgram.value != null` and the source code has not changed, do nothing to the VM.
+    - If compiling for inspection, compile the source into `_compiledProgram.value` without resetting `vm` if `vm.state` is `RUNNING` or `PAUSED_DEBUG`.
+  - When tapping the Bytecode tab, call `ensureBytecodeCompiled(resetVm = false)` instead of `compileCurrentCode()`.
+- In `BytecodeScreen`:
+  - Use `val listState = rememberLazyListState()`.
+  - Add `LaunchedEffect(currentIp)`:
+    - When `currentIp` changes and `currentIp in 0 until p.instructions.size`, call `listState.animateScrollToItem(maxOf(0, currentIp - 2))` to keep the instruction centered and visible.
+  - Display current instruction arrow indicator `▶` with glowing amber/cyan accent, matching source line information.
+
+---
+
+## Verification Plan
+
+### Automated Tests
+1. **Breakpoint Unit Tests (`BasicVirtualMachineTest.kt` / `DebuggerTest.kt`)**:
+   - Verify setting a breakpoint on editor source line `2` pauses execution before executing line `2`.
+   - Verify setting a breakpoint on BASIC line number `20` pauses execution before executing line `20`.
+   - Verify calling `resume()` from a breakpoint executes past the breakpoint line and continues to subsequent instructions or the next breakpoint without locking up.
+   - Verify running with breakpoints set pauses at the breakpoint.
+2. **Bytecode Inspection Test**:
+   - Verify inspecting bytecode while program is paused maintains `ip` and variables without resetting.
+3. **Full Test Suite**:
+   - Run `gradle :app:testDebugUnitTest` to ensure all existing and new tests pass.
+
+### Manual / Applet Verification
+1. Set a breakpoint on line 2 of a loop program in the editor.
+2. Press "Run": confirm app automatically switches to the Debugger tab, showing line 2 paused, IP pointer, and variables.
+3. Press "Resume" or "Step": verify program resumes execution and continues cleanly rather than getting stuck.
+4. Open the Debugger tab: confirm the superfluous "Step" button at the top is removed.
+5. While program is paused at line 2, switch to the Bytecode tab: confirm the program remains at the current instruction, does not restart from line 0, and the bytecode list auto-scrolls to highlight the current instruction.

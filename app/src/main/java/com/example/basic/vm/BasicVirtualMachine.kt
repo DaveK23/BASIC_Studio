@@ -177,7 +177,8 @@ class BasicVirtualMachine(
     private val onBeep: () -> Unit = {},
     private val onGraphicsStateChanged: (com.example.basic.graphics.RetroGraphicsState) -> Unit = {},
     private val onSound: (freqHz: Double, durationMs: Long, waveType: Int) -> Unit = { _, _, _ -> },
-    private val onSfx: (preset: Int) -> Unit = {}
+    private val onSfx: (preset: Int) -> Unit = {},
+    private val onBreakpointHit: (line: Int) -> Unit = {}
 ) {
     var program: BytecodeProgram? = null
         private set
@@ -201,6 +202,11 @@ class BasicVirtualMachine(
     val breakpoints = mutableSetOf<Int>() // Line numbers or IP
     var isDebugMode = false
     var stepMode = false
+
+    // Breakpoint re-entry tracking (prevents lockup on Resume)
+    private var lastBreakpointLineHit: Int = -1
+    private var lastBreakpointBasicLineHit: Int = -1
+    private var lastBreakpointIpHit: Int = -1
 
     private var currentTextColor = 0
     private var pendingInputDeferred: CompletableDeferred<String>? = null
@@ -227,10 +233,34 @@ class BasicVirtualMachine(
         onGraphicsStateChanged(graphicsState)
         pendingInputVar = null
         currentTextColor = 0
+        lastBreakpointLineHit = -1
+        lastBreakpointBasicLineHit = -1
+        lastBreakpointIpHit = -1
         state = VmState.IDLE
         onStateChange(state)
         onVariablesChanged(variables.toMap())
         onIpChanged(0, 1)
+    }
+
+    fun isAtBreakpoint(instruction: Instruction, currentIp: Int): Boolean {
+        if (breakpoints.isEmpty()) return false
+
+        val matchesEditorLine = instruction.sourceLine > 0 && breakpoints.contains(instruction.sourceLine)
+        val matchesBasicLine = instruction.sourceLineNum > 0 && breakpoints.contains(instruction.sourceLineNum)
+
+        if (!matchesEditorLine && !matchesBasicLine) {
+            return false
+        }
+
+        // If we previously paused on this line and haven't left it yet, don't re-trigger immediately
+        if (matchesEditorLine && instruction.sourceLine == lastBreakpointLineHit) {
+            return false
+        }
+        if (matchesBasicLine && instruction.sourceLineNum == lastBreakpointBasicLineHit) {
+            return false
+        }
+
+        return true
     }
 
     fun toggleBreakpoint(lineOrIp: Int) {
@@ -281,7 +311,7 @@ class BasicVirtualMachine(
      */
     suspend fun execute(debug: Boolean = false) {
         val p = program ?: return
-        isDebugMode = debug
+        isDebugMode = debug || breakpoints.isNotEmpty()
         isStopRequested = false
         isPauseRequested = false
         state = VmState.RUNNING
@@ -291,17 +321,43 @@ class BasicVirtualMachine(
             val instruction = p.instructions[ip]
             val currentLine = instruction.sourceLine
 
-            // Breakpoint check in debug mode
-            if (isDebugMode && (breakpoints.contains(currentLine) || breakpoints.contains(ip))) {
+            // Breakpoint check
+            if ((isDebugMode || breakpoints.isNotEmpty()) && isAtBreakpoint(instruction, ip)) {
+                lastBreakpointLineHit = instruction.sourceLine
+                lastBreakpointBasicLineHit = instruction.sourceLineNum
+                lastBreakpointIpHit = ip
                 state = VmState.PAUSED_DEBUG
                 onStateChange(state)
                 onIpChanged(ip, currentLine)
                 onVariablesChanged(variables.toMap())
+                val displayLine = if (instruction.sourceLineNum > 0) instruction.sourceLineNum else currentLine
+                onBreakpointHit(displayLine)
+                onOutput(TerminalLine("\n*** BREAKPOINT HIT AT LINE $displayLine ***\n", colorIndex = 14, isSystemNotice = true))
                 return
             }
 
             // Execute single instruction
             val jumpOccurred = executeInstruction(instruction, p)
+
+            // When line changes or jump occurs, clear the last breakpoint line hit
+            if (jumpOccurred) {
+                lastBreakpointLineHit = -1
+                lastBreakpointBasicLineHit = -1
+                lastBreakpointIpHit = -1
+            } else {
+                val nextInst = p.instructions.getOrNull(ip + 1)
+                if (nextInst != null) {
+                    if (nextInst.sourceLine != lastBreakpointLineHit) {
+                        lastBreakpointLineHit = -1
+                    }
+                    if (nextInst.sourceLineNum != lastBreakpointBasicLineHit) {
+                        lastBreakpointBasicLineHit = -1
+                    }
+                }
+                if (ip + 1 != lastBreakpointIpHit) {
+                    lastBreakpointIpHit = -1
+                }
+            }
 
             onIpChanged(ip, currentLine)
 
@@ -357,6 +413,21 @@ class BasicVirtualMachine(
         while (ip < p.instructions.size && !isStopRequested) {
             val instruction = p.instructions[ip]
             val currentLine = instruction.sourceLine
+
+            // If we hit a breakpoint on a DIFFERENT line while stepping, stop there
+            if (stepsCount > 0 && isAtBreakpoint(instruction, ip)) {
+                lastBreakpointLineHit = instruction.sourceLine
+                lastBreakpointBasicLineHit = instruction.sourceLineNum
+                lastBreakpointIpHit = ip
+                state = VmState.PAUSED_DEBUG
+                onStateChange(state)
+                onIpChanged(ip, currentLine)
+                onVariablesChanged(variables.toMap())
+                val displayLine = if (instruction.sourceLineNum > 0) instruction.sourceLineNum else currentLine
+                onBreakpointHit(displayLine)
+                return true
+            }
+
             val jumpOccurred = executeInstruction(instruction, p)
 
             if (!jumpOccurred) {
@@ -380,6 +451,9 @@ class BasicVirtualMachine(
 
             val nextLine = p.instructions.getOrNull(ip)?.sourceLine ?: -1
             if (nextLine != startLine && nextLine > 0) {
+                lastBreakpointLineHit = -1
+                lastBreakpointBasicLineHit = -1
+                lastBreakpointIpHit = -1
                 break
             }
 
@@ -408,12 +482,31 @@ class BasicVirtualMachine(
         val currentLine = instruction.sourceLine
         val jumpOccurred = executeInstruction(instruction, p)
 
-        if (!jumpOccurred) {
+        if (jumpOccurred) {
+            lastBreakpointLineHit = -1
+            lastBreakpointBasicLineHit = -1
+            lastBreakpointIpHit = -1
+        } else {
+            val nextInst = p.instructions.getOrNull(ip + 1)
+            if (nextInst != null && nextInst.sourceLine != lastBreakpointLineHit) {
+                lastBreakpointLineHit = -1
+                lastBreakpointBasicLineHit = -1
+            }
+            if (ip + 1 != lastBreakpointIpHit) {
+                lastBreakpointIpHit = -1
+            }
             ip++
         }
 
         onIpChanged(ip, currentLine)
         onVariablesChanged(variables.toMap())
+
+        if (ip >= p.instructions.size && state != VmState.TERMINATED) {
+            state = VmState.TERMINATED
+            onStateChange(state)
+            onOutput(TerminalLine("\n*** PROGRAM COMPLETED ***", colorIndex = 11, isSystemNotice = true))
+            return false
+        }
 
         if (state == VmState.RUNNING) {
             state = VmState.PAUSED_DEBUG
