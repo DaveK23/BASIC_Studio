@@ -44,4 +44,14 @@
     <string name="no_saved_programs">No saved programs found on device.</string>
     <string name="save_to_device">Save to Device</string>
     <string name="load_from_device">Load from Device</string>
+    <string name="help_action">Help</string>
+    <string name="doc_viewer_title">BASIC Reference</string>
+    <string name="search_action">Search</string>
+    <string name="search_docs_hint">Filter commands, functions, operators…</string>
+    <string name="toc_action">Table of Contents</string>
+    <string name="back_action">Back</string>
+    <string name="forward_action">Forward</string>
+    <string name="close_action">Close</string>
+    <string name="quick_help">Quick Help</string>
+    <string name="doc_for_token">Help: %1$s</string>
 </resources>

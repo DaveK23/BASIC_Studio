@@ -56,7 +56,12 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Terminal
-import androidx.compose.material.icons.outlined.Circle
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.ui.text.TextRange
+import com.example.basic.docs.BasicDocHelper
+import com.example.basic.docs.DocEntry
 import com.example.basic.file.BasicFileInfo
 import com.example.basic.file.BasicFileManager
 import androidx.compose.material3.AlertDialog
@@ -172,6 +177,8 @@ fun BasicStudioApp(viewModel: BasicViewModel) {
     var showSamplesDialog by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
     var showFileManagerDialog by remember { mutableStateOf(false) }
+    var showDocsDialog by remember { mutableStateOf(false) }
+    var docInitialAnchor by remember { mutableStateOf<String?>(null) }
 
     val currentFileName by viewModel.currentFileName.collectAsState()
     val savedFiles by viewModel.savedFiles.collectAsState()
@@ -377,6 +384,21 @@ fun BasicStudioApp(viewModel: BasicViewModel) {
                             tint = TerminalCyan
                         )
                     }
+
+                    // Help Documentation Button
+                    IconButton(
+                        onClick = {
+                            docInitialAnchor = null
+                            showDocsDialog = true
+                        },
+                        modifier = Modifier.testTag("help_docs_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.HelpOutline,
+                            contentDescription = stringResource(R.string.help_action),
+                            tint = TerminalCyan
+                        )
+                    }
                 }
             )
         },
@@ -483,6 +505,10 @@ fun BasicStudioApp(viewModel: BasicViewModel) {
                     onOpenFileManager = {
                         viewModel.refreshSavedFiles(context)
                         showFileManagerDialog = true
+                    },
+                    onOpenDocs = { anchor ->
+                        docInitialAnchor = anchor
+                        showDocsDialog = true
                     }
                 )
                 AppTab.TERMINAL -> TerminalScreen(
@@ -585,6 +611,15 @@ fun BasicStudioApp(viewModel: BasicViewModel) {
             monoFont = monoFont
         )
     }
+
+    // Dialog for HTML Documentation Viewer
+    if (showDocsDialog) {
+        BasicDocViewerDialog(
+            initialAnchor = docInitialAnchor,
+            onDismiss = { showDocsDialog = false },
+            monoFont = monoFont
+        )
+    }
 }
 
 @Composable
@@ -593,13 +628,43 @@ fun EditorScreen(
     monoFont: FontFamily,
     currentDebugLine: Int?,
     onOpenFilePicker: () -> Unit = {},
-    onOpenFileManager: () -> Unit = {}
+    onOpenFileManager: () -> Unit = {},
+    onOpenDocs: (anchor: String?) -> Unit = {}
 ) {
     val code by viewModel.sourceCode.collectAsState()
     val breakpoints by viewModel.breakpoints.collectAsState()
     val lines = remember(code) { code.lines() }
     val currentFileName by viewModel.currentFileName.collectAsState()
     val context = LocalContext.current
+
+    var textFieldValue by remember {
+        mutableStateOf(TextFieldValue(text = code, selection = TextRange(code.length)))
+    }
+
+    LaunchedEffect(code) {
+        if (code != textFieldValue.text) {
+            val safePos = textFieldValue.selection.start.coerceIn(0, code.length)
+            textFieldValue = textFieldValue.copy(
+                text = code,
+                selection = TextRange(safePos)
+            )
+        }
+    }
+
+    val currentDocEntry = remember(textFieldValue.text, textFieldValue.selection) {
+        val cursor = textFieldValue.selection.start
+        BasicDocHelper.resolveEntryAtCursor(textFieldValue.text, cursor)
+    }
+
+    fun insertAtCursor(snippet: String) {
+        val selStart = textFieldValue.selection.start
+        val selEnd = textFieldValue.selection.end
+        val currentText = textFieldValue.text
+        val newText = currentText.replaceRange(selStart, selEnd, snippet)
+        val newPos = selStart + snippet.length
+        textFieldValue = TextFieldValue(text = newText, selection = TextRange(newPos))
+        viewModel.updateCode(newText)
+    }
 
     Column(
         modifier = Modifier
@@ -650,6 +715,52 @@ fun EditorScreen(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Context-Sensitive Help Button
+                    if (currentDocEntry != null) {
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color(0xFF0369A1).copy(alpha = 0.35f),
+                            border = BorderStroke(1.dp, TerminalCyan),
+                            modifier = Modifier
+                                .clickable { onOpenDocs(currentDocEntry.anchor) }
+                                .testTag("editor_context_help_button")
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.HelpOutline,
+                                    contentDescription = stringResource(R.string.quick_help),
+                                    tint = TerminalCyan,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = currentDocEntry.keyword,
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontFamily = monoFont,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    } else {
+                        IconButton(
+                            onClick = { onOpenDocs(null) },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .testTag("editor_help_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.HelpOutline,
+                                contentDescription = stringResource(R.string.help_action),
+                                tint = TerminalCyan,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
                     // New Button
                     IconButton(
                         onClick = { viewModel.newProgram() },
@@ -698,22 +809,60 @@ fun EditorScreen(
             }
         }
 
-        // Quick syntax helper toolbar
+        // Quick syntax helper toolbar (horizontally scrollable with docs shortcut)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(DarkSurface)
+                .horizontalScroll(rememberScrollState())
                 .padding(horizontal = 8.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val helpers = listOf("PRINT", "INPUT", "LET", "IF", "THEN", "FOR", "TO", "NEXT", "GOTO", "CLS")
+            // Quick Reference Manual Button
+            Surface(
+                shape = RoundedCornerShape(4.dp),
+                color = Color(0xFF0369A1),
+                border = BorderStroke(1.dp, TerminalCyan),
+                modifier = Modifier
+                    .clickable { onOpenDocs(null) }
+                    .testTag("quick_doc_button")
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MenuBook,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "DOCS",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontFamily = monoFont,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            val helpers = listOf(
+                "PRINT", "INPUT", "LET", "IF", "THEN", "ELSE",
+                "FOR", "TO", "STEP", "NEXT", "WHILE", "WEND",
+                "GOTO", "GOSUB", "RETURN", "DIM", "CLS", "COLOR",
+                "SCREEN", "PSET", "LINE", "RECT", "CIRCLE",
+                "SOUND", "SFX", "SPRITEDEF", "SPRITE", "SPRITEMOVE",
+                "RND", "INT", "SIN", "COS", "SLEEP", "END"
+            )
             helpers.forEach { keyword ->
                 Surface(
                     shape = RoundedCornerShape(4.dp),
                     color = Color(0xFF1E293B),
                     modifier = Modifier.clickable {
-                        viewModel.insertSnippet("$keyword ")
+                        insertAtCursor("$keyword ")
                     }
                 ) {
                     Text(
@@ -788,8 +937,13 @@ fun EditorScreen(
                     .padding(8.dp)
             ) {
                 BasicTextField(
-                    value = code,
-                    onValueChange = { viewModel.updateCode(it) },
+                    value = textFieldValue,
+                    onValueChange = { newValue ->
+                        textFieldValue = newValue
+                        if (newValue.text != code) {
+                            viewModel.updateCode(newValue.text)
+                        }
+                    },
                     textStyle = TextStyle(
                         fontFamily = monoFont,
                         fontSize = 13.sp,

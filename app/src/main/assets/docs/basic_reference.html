@@ -1,0 +1,1598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BASIC Studio - Language Reference Manual</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #111827;
+      --card-border: #1f293d;
+      --card-hover: #172033;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --cyan: #38bdf8;
+      --green: #4ade80;
+      --amber: #fbbf24;
+      --pink: #f472b6;
+      --purple: #c084fc;
+      --code-bg: #050811;
+      --border-accent: #38bdf844;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      padding-bottom: 80px;
+    }
+
+    /* Sticky Navigation Header */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--card-border);
+      padding: 10px 16px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-logo {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 10px var(--cyan);
+    }
+
+    .brand-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #fff;
+      font-family: monospace;
+      letter-spacing: 0.5px;
+    }
+
+    .search-box {
+      flex: 1;
+      min-width: 180px;
+      max-width: 320px;
+      position: relative;
+    }
+
+    .search-input {
+      width: 100%;
+      background: #0b1120;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 0.85rem;
+      padding: 6px 12px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .search-input:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .nav-pill {
+      font-size: 0.75rem;
+      font-family: monospace;
+      padding: 4px 8px;
+      border-radius: 4px;
+      background: #1e293b;
+      color: var(--cyan);
+      text-decoration: none;
+      transition: background 0.15s;
+    }
+
+    .nav-pill:hover {
+      background: #334155;
+      color: #fff;
+    }
+
+    /* Layout Container */
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 16px 16px 40px;
+    }
+
+    /* Hero intro */
+    .hero {
+      background: linear-gradient(180deg, #131d33 0%, #0d1527 100%);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 18px;
+      margin-bottom: 24px;
+    }
+
+    .hero h1 {
+      font-size: 1.4rem;
+      color: #fff;
+      margin-bottom: 8px;
+      font-family: monospace;
+    }
+
+    .hero p {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 12px;
+    }
+
+    .quick-stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: 0.8rem;
+      color: var(--cyan);
+      font-family: monospace;
+    }
+
+    .quick-stat-badge {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 4px;
+      padding: 2px 8px;
+    }
+
+    /* Table of contents grid */
+    .toc-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 24px;
+      scroll-margin-top: 70px;
+    }
+
+    .toc-card h2 {
+      font-size: 1.1rem;
+      color: var(--amber);
+      font-family: monospace;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 6px;
+    }
+
+    .toc-section-title {
+      font-size: 0.85rem;
+      color: var(--cyan);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin: 12px 0 6px;
+      font-family: monospace;
+    }
+
+    .toc-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .toc-chip {
+      font-family: monospace;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 4px;
+      background: #172237;
+      color: #e2e8f0;
+      text-decoration: none;
+      border: 1px solid #24344d;
+      transition: all 0.15s ease;
+    }
+
+    .toc-chip:hover {
+      background: var(--cyan);
+      color: #000;
+      border-color: var(--cyan);
+    }
+
+    .toc-chip.statement { border-left: 3px solid var(--cyan); }
+    .toc-chip.function { border-left: 3px solid var(--green); }
+    .toc-chip.operator { border-left: 3px solid var(--pink); }
+    .toc-chip.graphics { border-left: 3px solid var(--purple); }
+    .toc-chip.audio { border-left: 3px solid var(--amber); }
+
+    /* Section Headers */
+    .section-banner {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 32px 0 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--cyan);
+      scroll-margin-top: 70px;
+    }
+
+    .section-banner h2 {
+      font-size: 1.25rem;
+      color: #fff;
+      font-family: monospace;
+      letter-spacing: 0.5px;
+    }
+
+    .section-badge {
+      font-size: 0.7rem;
+      font-family: monospace;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #1e293b;
+      color: var(--cyan);
+      text-transform: uppercase;
+    }
+
+    /* Documentation Entry Card */
+    .doc-entry {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 18px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      scroll-margin-top: 75px;
+    }
+
+    .doc-entry:hover {
+      border-color: #334155;
+    }
+
+    .doc-entry:target {
+      border-color: var(--cyan);
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.25);
+    }
+
+    .doc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .doc-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--cyan);
+      font-family: monospace;
+    }
+
+    .doc-category-badge {
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-family: monospace;
+      font-weight: 600;
+    }
+
+    .badge-statement { background: rgba(56, 189, 248, 0.15); color: var(--cyan); }
+    .badge-function { background: rgba(74, 222, 128, 0.15); color: var(--green); }
+    .badge-operator { background: rgba(244, 114, 182, 0.15); color: var(--pink); }
+    .badge-graphics { background: rgba(192, 132, 252, 0.15); color: var(--purple); }
+    .badge-audio { background: rgba(251, 191, 36, 0.15); color: var(--amber); }
+
+    /* Syntax highlight box */
+    .syntax-box {
+      background: #060a14;
+      border-left: 3px solid var(--cyan);
+      border-radius: 0 4px 4px 0;
+      padding: 10px 14px;
+      font-family: monospace;
+      font-size: 0.9rem;
+      color: #f8fafc;
+      margin-bottom: 12px;
+      overflow-x: auto;
+    }
+
+    .syntax-box b {
+      color: var(--cyan);
+    }
+
+    .syntax-box .opt {
+      color: #94a3b8;
+    }
+
+    /* Explanation & parameters */
+    .doc-desc {
+      font-size: 0.9rem;
+      color: #cbd5e1;
+      margin-bottom: 12px;
+    }
+
+    .doc-params-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      margin-bottom: 12px;
+    }
+
+    .doc-params-table th, .doc-params-table td {
+      border: 1px solid #1e293b;
+      padding: 6px 10px;
+      text-align: left;
+    }
+
+    .doc-params-table th {
+      background: #0f172a;
+      color: var(--cyan);
+      font-family: monospace;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+    }
+
+    .doc-params-table td code {
+      font-family: monospace;
+      color: var(--amber);
+      background: #0b1120;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+
+    /* Code Example snippet */
+    .example-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: monospace;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    pre.code-block {
+      background: var(--code-bg);
+      border: 1px solid #1e293b;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-family: monospace;
+      font-size: 0.85rem;
+      color: #e2e8f0;
+      overflow-x: auto;
+      margin-bottom: 8px;
+      line-height: 1.45;
+    }
+
+    .code-comment { color: #64748b; font-style: italic; }
+    .code-kw { color: var(--cyan); font-weight: 600; }
+    .code-fn { color: var(--green); }
+    .code-str { color: #a3e635; }
+    .code-num { color: #fb923c; }
+    .code-op { color: var(--pink); }
+
+    .doc-footer-link {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-family: monospace;
+      color: #64748b;
+      text-decoration: none;
+      margin-top: 6px;
+    }
+
+    .doc-footer-link:hover {
+      color: var(--cyan);
+    }
+
+    /* Color Palette Grid */
+    .palette-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 8px;
+      margin: 12px 0 16px;
+    }
+
+    .palette-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #0b1120;
+      border: 1px solid #1e293b;
+      border-radius: 4px;
+      padding: 6px 8px;
+      font-family: monospace;
+      font-size: 0.75rem;
+    }
+
+    .palette-swatch {
+      width: 20px;
+      height: 20px;
+      border-radius: 3px;
+      border: 1px solid #334155;
+      flex-shrink: 0;
+    }
+
+    /* Waveform & Presets table */
+    .spec-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      margin: 10px 0;
+    }
+
+    .spec-table th, .spec-table td {
+      border: 1px solid #1e293b;
+      padding: 6px 10px;
+    }
+
+    .spec-table th {
+      background: #0f172a;
+      color: var(--cyan);
+      font-family: monospace;
+    }
+
+    /* Floating Back To Top button */
+    .back-to-top {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #1e293b;
+      color: var(--cyan);
+      border: 1px solid var(--cyan);
+      padding: 8px 14px;
+      border-radius: 20px;
+      font-family: monospace;
+      font-size: 0.8rem;
+      text-decoration: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      transition: background 0.2s;
+      z-index: 90;
+    }
+
+    .back-to-top:hover {
+      background: var(--cyan);
+      color: #000;
+    }
+
+    /* Hidden state during search filter */
+    .doc-entry.hidden-by-search {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sticky Top Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-logo"></div>
+      <div class="brand-title">BASIC STUDIO REFERENCE</div>
+    </div>
+    <div class="search-box">
+      <input type="text" id="manual-search" class="search-input" placeholder="Search commands, functions, operators..." oninput="filterDocs(this.value)">
+    </div>
+    <div class="nav-links">
+      <a href="#toc" class="nav-pill">INDEX</a>
+      <a href="#section-statements" class="nav-pill">COMMANDS</a>
+      <a href="#section-functions" class="nav-pill">FUNCTIONS</a>
+      <a href="#section-graphics" class="nav-pill">GRAPHICS</a>
+      <a href="#section-audio" class="nav-pill">AUDIO</a>
+      <a href="#section-operators" class="nav-pill">OPERATORS</a>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <!-- Hero Overview -->
+    <div class="hero">
+      <h1>BASIC Language Reference Manual</h1>
+      <p>
+        Complete syntax specification and semantics for the BASIC Studio Virtual Machine and Compiler.
+        Supports line-numbered or modern freeform code, retro 320&times;200 graphics, multi-waveform synthesizer, arcade sound effects, sprite collision detection, and full mathematical functions.
+      </p>
+      <div class="quick-stats">
+        <span class="quick-stat-badge">26 Statements</span>
+        <span class="quick-stat-badge">14 Built-in Functions</span>
+        <span class="quick-stat-badge">15 Operators</span>
+        <span class="quick-stat-badge">320&times;200 Retro Display</span>
+        <span class="quick-stat-badge">16-Color Palette</span>
+      </div>
+    </div>
+
+    <!-- Table of Contents -->
+    <div id="toc" class="toc-card">
+      <h2>Quick Jump Table of Contents</h2>
+
+      <div class="toc-section-title">Program Flow &amp; Control</div>
+      <div class="toc-grid">
+        <a href="#cmd_if" class="toc-chip statement">IF ... THEN ... ELSE</a>
+        <a href="#cmd_for" class="toc-chip statement">FOR ... TO ... STEP ... NEXT</a>
+        <a href="#cmd_while" class="toc-chip statement">WHILE ... WEND</a>
+        <a href="#cmd_goto" class="toc-chip statement">GOTO</a>
+        <a href="#cmd_gosub" class="toc-chip statement">GOSUB / RETURN</a>
+        <a href="#cmd_end" class="toc-chip statement">END / STOP</a>
+        <a href="#cmd_sleep" class="toc-chip statement">SLEEP</a>
+      </div>
+
+      <div class="toc-section-title">Input, Output &amp; System</div>
+      <div class="toc-grid">
+        <a href="#cmd_print" class="toc-chip statement">PRINT</a>
+        <a href="#cmd_input" class="toc-chip statement">INPUT</a>
+        <a href="#cmd_let" class="toc-chip statement">LET (=)</a>
+        <a href="#cmd_dim" class="toc-chip statement">DIM</a>
+        <a href="#cmd_cls" class="toc-chip statement">CLS</a>
+        <a href="#cmd_color" class="toc-chip statement">COLOR</a>
+        <a href="#cmd_beep" class="toc-chip statement">BEEP</a>
+        <a href="#cmd_rem" class="toc-chip statement">REM / '</a>
+      </div>
+
+      <div class="toc-section-title">Retro Graphics (320&times;200)</div>
+      <div class="toc-grid">
+        <a href="#cmd_screen" class="toc-chip graphics">SCREEN</a>
+        <a href="#cmd_pset" class="toc-chip graphics">PSET</a>
+        <a href="#cmd_line" class="toc-chip graphics">LINE</a>
+        <a href="#cmd_rect" class="toc-chip graphics">RECT</a>
+        <a href="#cmd_circle" class="toc-chip graphics">CIRCLE</a>
+        <a href="#palette_ref" class="toc-chip graphics">16-Color Palette</a>
+      </div>
+
+      <div class="toc-section-title">Sprites Engine</div>
+      <div class="toc-grid">
+        <a href="#cmd_spritedef" class="toc-chip graphics">SPRITEDEF</a>
+        <a href="#cmd_sprite" class="toc-chip graphics">SPRITE</a>
+        <a href="#cmd_spritemove" class="toc-chip graphics">SPRITEMOVE</a>
+        <a href="#cmd_spriteshow" class="toc-chip graphics">SPRITESHOW</a>
+        <a href="#fn_spritehit" class="toc-chip graphics">SPRITEHIT()</a>
+      </div>
+
+      <div class="toc-section-title">Sound &amp; SFX Synthesizer</div>
+      <div class="toc-grid">
+        <a href="#cmd_sound" class="toc-chip audio">SOUND</a>
+        <a href="#cmd_sfx" class="toc-chip audio">SFX Presets</a>
+      </div>
+
+      <div class="toc-section-title">Built-in Functions</div>
+      <div class="toc-grid">
+        <a href="#fn_int" class="toc-chip function">INT()</a>
+        <a href="#fn_abs" class="toc-chip function">ABS()</a>
+        <a href="#fn_sqr" class="toc-chip function">SQR()</a>
+        <a href="#fn_rnd" class="toc-chip function">RND()</a>
+        <a href="#fn_sin" class="toc-chip function">SIN()</a>
+        <a href="#fn_cos" class="toc-chip function">COS()</a>
+        <a href="#fn_tan" class="toc-chip function">TAN()</a>
+        <a href="#fn_len" class="toc-chip function">LEN()</a>
+        <a href="#fn_str" class="toc-chip function">STR$()</a>
+        <a href="#fn_val" class="toc-chip function">VAL()</a>
+        <a href="#fn_chr" class="toc-chip function">CHR$()</a>
+        <a href="#fn_asc" class="toc-chip function">ASC()</a>
+        <a href="#fn_tab" class="toc-chip function">TAB()</a>
+      </div>
+
+      <div class="toc-section-title">Operators &amp; Logic</div>
+      <div class="toc-grid">
+        <a href="#op_add" class="toc-chip operator">+ (Add / Concat)</a>
+        <a href="#op_sub" class="toc-chip operator">- (Subtract / Negate)</a>
+        <a href="#op_mul" class="toc-chip operator">* (Multiply)</a>
+        <a href="#op_div" class="toc-chip operator">/ (Divide)</a>
+        <a href="#op_pow" class="toc-chip operator">^ (Power)</a>
+        <a href="#op_mod" class="toc-chip operator">MOD (Modulo)</a>
+        <a href="#op_eq" class="toc-chip operator">= (Equals)</a>
+        <a href="#op_neq" class="toc-chip operator">&lt;&gt; (Not Equal)</a>
+        <a href="#op_lt" class="toc-chip operator">&lt;, &lt;=, &gt;, &gt;=</a>
+        <a href="#op_and" class="toc-chip operator">AND</a>
+        <a href="#op_or" class="toc-chip operator">OR</a>
+        <a href="#op_not" class="toc-chip operator">NOT</a>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- SECTION: STATEMENTS & COMMANDS -->
+    <!-- ============================================================ -->
+    <div id="section-statements" class="section-banner">
+      <h2>STATEMENTS &amp; SYSTEM COMMANDS</h2>
+      <span class="section-badge">Core Engine</span>
+    </div>
+
+    <!-- PRINT -->
+    <div id="cmd_print" class="doc-entry" data-keywords="print output display write ; , ? tab">
+      <div class="doc-header">
+        <div class="doc-title">PRINT [expressions...]</div>
+        <span class="doc-category-badge badge-statement">Statement</span>
+      </div>
+      <div class="syntax-box">
+        <b>PRINT</b> [expr1] [; | ,] [expr2] ...
+      </div>
+      <div class="doc-desc">
+        Outputs strings, numbers, variables, and expressions to the text terminal console.
+        Separating items with a semicolon (<code>;</code>) prints values immediately adjacent with no extra space.
+        Separating items with a comma (<code>,</code>) advances output to the next 14-column tab stop.
+        If a statement ends with a semicolon or comma, the automatic trailing newline is suppressed.
+      </div>
+      <table class="doc-params-table">
+        <tr><th>Syntax Feature</th><th>Description</th></tr>
+        <tr><td><code>;</code> (Semicolon)</td><td>Suppresses spaces and keeps the printing cursor directly adjacent.</td></tr>
+        <tr><td><code>,</code> (Comma)</td><td>Zones output in 14-column tabular increments.</td></tr>
+        <tr><td><code>TAB(n)</code></td><td>Moves cursor forward to horizontal column <code>n</code>.</td></tr>
+        <tr><td>Empty <code>PRINT</code></td><td>Prints a blank line.</td></tr>
+      </table>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">PRINT</span> <span class="code-str">"PLAYER SCORE: "</span>; <span class="code-num">100</span>; <span class="code-str">" PTS"</span>
+<span class="code-num">20</span> <span class="code-kw">PRINT</span> <span class="code-str">"ITEM"</span>, <span class="code-str">"QTY"</span>, <span class="code-str">"PRICE"</span>
+<span class="code-num">30</span> <span class="code-kw">PRINT</span> <span class="code-str">"SWORD"</span>, <span class="code-num">1</span>, <span class="code-num">250</span>
+<span class="code-num">40</span> <span class="code-kw">PRINT</span> <span class="code-str">"LOADING"</span>;
+<span class="code-num">50</span> <span class="code-kw">FOR</span> I = <span class="code-num">1</span> <span class="code-kw">TO</span> <span class="code-num">5</span>: <span class="code-kw">PRINT</span> <span class="code-str">"."</span>;: <span class="code-kw">SLEEP</span> <span class="code-num">100</span>: <span class="code-kw">NEXT</span> I
+<span class="code-num">60</span> <span class="code-kw">PRINT</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- INPUT -->
+    <div id="cmd_input" class="doc-entry" data-keywords="input read prompt prompt string ask">
+      <div class="doc-header">
+        <div class="doc-title">INPUT ["Prompt";] variable</div>
+        <span class="doc-category-badge badge-statement">Statement</span>
+      </div>
+      <div class="syntax-box">
+        <b>INPUT</b> [<span class="opt">"Prompt string"</span>;] &lt;variable&gt;
+      </div>
+      <div class="doc-desc">
+        Suspends execution and prompts the user to enter data through the interactive terminal keyboard.
+        If a prompt string is provided, it is displayed prior to the prompt indicator.
+        Numeric variables will parse numbers (defaulting to 0 if invalid).
+        String variables ending with <code>$</code> accept arbitrary text input.
+      </div>
+      <table class="doc-params-table">
+        <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+        <tr><td><code>"Prompt"</code></td><td>String (optional)</td><td>Message displayed before the input prompt.</td></tr>
+        <tr><td><code>variable</code></td><td>Identifier</td><td>Variable name to receive input (e.g., <code>NAME$</code>, <code>AGE</code>).</td></tr>
+      </table>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">INPUT</span> <span class="code-str">"WHAT IS YOUR HERO'S NAME? "</span>; HERO$
+<span class="code-num">20</span> <span class="code-kw">INPUT</span> <span class="code-str">"ENTER YOUR AGE: "</span>; AGE
+<span class="code-num">30</span> <span class="code-kw">PRINT</span> <span class="code-str">"WELCOME "</span>; HERO$; <span class="code-str">"! AGE "</span>; AGE</pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- LET -->
+    <div id="cmd_let" class="doc-entry" data-keywords="let assign assignment variable = store">
+      <div class="doc-header">
+        <div class="doc-title">LET var = expression</div>
+        <span class="doc-category-badge badge-statement">Statement</span>
+      </div>
+      <div class="syntax-box">
+        [<b>LET</b>] &lt;variable&gt; = &lt;expression&gt;
+      </div>
+      <div class="doc-desc">
+        Assigns the evaluated result of an expression to a variable or array element.
+        The keyword <code>LET</code> is optional; implicit assignment (e.g., <code>X = 10</code>) is fully supported.
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">LET</span> SCORE = <span class="code-num">0</span>
+<span class="code-num">20</span> LIVES = <span class="code-num">3</span>             <span class="code-comment">' Implicit LET</span>
+<span class="code-num">30</span> TITLE$ = <span class="code-str">"QUEST"</span>
+<span class="code-num">40</span> SCORE = SCORE + <span class="code-num">100</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- IF...THEN...ELSE -->
+    <div id="cmd_if" class="doc-entry" data-keywords="if then else condition branch logic goto">
+      <div class="doc-header">
+        <div class="doc-title">IF condition THEN statement [ELSE statement]</div>
+        <span class="doc-category-badge badge-statement">Statement</span>
+      </div>
+      <div class="syntax-box">
+        <b>IF</b> &lt;condition&gt; <b>THEN</b> &lt;statement | line_num&gt; [<b>ELSE</b> &lt;statement | line_num&gt;]
+      </div>
+      <div class="doc-desc">
+        Evaluates a boolean condition. If true (non-zero), executes the <code>THEN</code> clause.
+        If false (zero) and an <code>ELSE</code> clause is provided, executes the <code>ELSE</code> clause.
+        If a line number is specified directly after <code>THEN</code> or <code>ELSE</code>, it acts as a shorthand <code>GOTO</code>.
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">IF</span> SCORE &gt;= <span class="code-num">1000</span> <span class="code-kw">THEN</span> <span class="code-kw">PRINT</span> <span class="code-str">"NEW HIGH SCORE!"</span> <span class="code-kw">ELSE</span> <span class="code-kw">PRINT</span> <span class="code-str">"KEEP TRYING"</span>
+<span class="code-num">20</span> <span class="code-kw">IF</span> LIVES &lt;= <span class="code-num">0</span> <span class="code-kw">THEN</span> <span class="code-num">100</span>   <span class="code-comment">' Shorthand GOTO 100</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- FOR...TO...STEP...NEXT -->
+    <div id="cmd_for" class="doc-entry" data-keywords="for to step next loop iterate range">
+      <div class="doc-header">
+        <div class="doc-title">FOR var = start TO finish [STEP step] ... NEXT [var]</div>
+        <span class="doc-category-badge badge-statement">Statement</span>
+      </div>
+      <div class="syntax-box">
+        <b>FOR</b> &lt;var&gt; = &lt;start&gt; <b>TO</b> &lt;finish&gt; [<b>STEP</b> &lt;step&gt;]<br>
+        &nbsp;&nbsp;... statements ...<br>
+        <b>NEXT</b> [&lt;var&gt;]
+      </div>
+      <div class="doc-desc">
+        Iterates a numeric control variable from <code>start</code> through <code>finish</code>.
+        If <code>STEP</code> is omitted, an increment of <code>1.0</code> is used.
+        Negative steps count downwards. Nested <code>FOR</code> loops are fully supported.
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">FOR</span> I = <span class="code-num">10</span> <span class="code-kw">TO</span> <span class="code-num">1</span> <span class="code-kw">STEP</span> -<span class="code-num">1</span>
+<span class="code-num">20</span>   <span class="code-kw">PRINT</span> <span class="code-str">"COUNTDOWN: "</span>; I
+<span class="code-num">30</span> <span class="code-kw">NEXT</span> I
+<span class="code-num">40</span> <span class="code-kw">PRINT</span> <span class="code-str">"BLAST OFF!"</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- WHILE...WEND -->
+    <div id="cmd_while" class="doc-entry" data-keywords="while wend loop condition repeat until">
+      <div class="doc-header">
+        <div class="doc-title">WHILE condition ... WEND</div>
+        <span class="doc-category-badge badge-statement">Statement</span>
+      </div>
+      <div class="syntax-box">
+        <b>WHILE</b> &lt;condition&gt;<br>
+        &nbsp;&nbsp;... statements ...<br>
+        <b>WEND</b>
+      </div>
+      <div class="doc-desc">
+        Executes a series of statements in a loop as long as the condition evaluates to true (non-zero).
+        The condition is evaluated at the top of each iteration; if initially false, the loop body never runs.
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> COUNT = <span class="code-num">1</span>
+<span class="code-num">20</span> <span class="code-kw">WHILE</span> COUNT &lt;= <span class="code-num">5</span>
+<span class="code-num">30</span>   <span class="code-kw">PRINT</span> <span class="code-str">"POWER OF TWO: "</span>; (<span class="code-num">2</span> ^ COUNT)
+<span class="code-num">40</span>   COUNT = COUNT + <span class="code-num">1</span>
+<span class="code-num">50</span> <span class="code-kw">WEND</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- GOTO -->
+    <div id="cmd_goto" class="doc-entry" data-keywords="goto jump line branch flow">
+      <div class="doc-header">
+        <div class="doc-title">GOTO line_number</div>
+        <span class="doc-category-badge badge-statement">Statement</span>
+      </div>
+      <div class="syntax-box">
+        <b>GOTO</b> &lt;line_number&gt;
+      </div>
+      <div class="doc-desc">
+        Unconditionally transfers program control directly to the statement at <code>line_number</code>.
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">PRINT</span> <span class="code-str">"RETRO BASIC IS AWESOME!"</span>
+<span class="code-num">20</span> <span class="code-kw">SLEEP</span> <span class="code-num">200</span>
+<span class="code-num">30</span> <span class="code-kw">GOTO</span> <span class="code-num">10</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- GOSUB / RETURN -->
+    <div id="cmd_gosub" class="doc-entry" data-keywords="gosub return subroutine call stack">
+      <div class="doc-header">
+        <div class="doc-title">GOSUB line_number ... RETURN</div>
+        <span class="doc-category-badge badge-statement">Statement</span>
+      </div>
+      <div class="syntax-box">
+        <b>GOSUB</b> &lt;line_number&gt;<br>
+        ...<br>
+        <b>RETURN</b>
+      </div>
+      <div class="doc-desc">
+        Pushes the current instruction return address onto the call stack and branches to the subroutine starting at <code>line_number</code>.
+        When <code>RETURN</code> is reached, program flow resumes at the instruction immediately following the <code>GOSUB</code>.
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">PRINT</span> <span class="code-str">"MAIN START"</span>
+<span class="code-num">20</span> <span class="code-kw">GOSUB</span> <span class="code-num">100</span>
+<span class="code-num">30</span> <span class="code-kw">PRINT</span> <span class="code-str">"BACK IN MAIN"</span>
+<span class="code-num">40</span> <span class="code-kw">END</span>
+<span class="code-num">100</span> <span class="code-kw">PRINT</span> <span class="code-str">"*** EXECUTING SUBROUTINE ***"</span>
+<span class="code-num">110</span> <span class="code-kw">RETURN</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- END / STOP -->
+    <div id="cmd_end" class="doc-entry" data-keywords="end stop halt terminate exit finish">
+      <span id="cmd_stop"></span>
+      <div class="doc-header">
+        <div class="doc-title">END / STOP</div>
+        <span class="doc-category-badge badge-statement">Statement</span>
+      </div>
+      <div class="syntax-box">
+        <b>END</b><br>
+        <b>STOP</b>
+      </div>
+      <div class="doc-desc">
+        <code>END</code> terminates execution cleanly.
+        <code>STOP</code> halts execution and triggers debug state pause, allowing inspection of variables and call stack in the Debugger tab.
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">PRINT</span> <span class="code-str">"PROGRAM FINISHED"</span>
+<span class="code-num">20</span> <span class="code-kw">END</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- REM and ' -->
+    <div id="cmd_rem" class="doc-entry" data-keywords="rem ' comment remark note docs">
+      <div class="doc-header">
+        <div class="doc-title">REM remark / ' remark</div>
+        <span class="doc-category-badge badge-statement">Statement</span>
+      </div>
+      <div class="syntax-box">
+        <b>REM</b> &lt;comment text&gt;<br>
+        <b>'</b> &lt;comment text&gt;
+      </div>
+      <div class="doc-desc">
+        Inserts explanatory remarks and developer comments in the source code.
+        All text following <code>REM</code> or <code>'</code> up to the end of the line is ignored by the compiler.
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">REM</span> *** MATRIX INITIALIZATION ROUTINE ***
+<span class="code-num">20</span> X = <span class="code-num">100</span>  <span class="code-comment">' Horizontal screen origin</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- CLS -->
+    <div id="cmd_cls" class="doc-entry" data-keywords="cls clear screen terminal reset display">
+      <div class="doc-header">
+        <div class="doc-title">CLS</div>
+        <span class="doc-category-badge badge-statement">Statement</span>
+      </div>
+      <div class="syntax-box">
+        <b>CLS</b>
+      </div>
+      <div class="doc-desc">
+        Clears all text output lines from the terminal screen and resets the retro 320&times;200 canvas bitmap to solid black.
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">CLS</span>
+<span class="code-num">20</span> <span class="code-kw">PRINT</span> <span class="code-str">"SCREEN CLEARED"</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- COLOR -->
+    <div id="cmd_color" class="doc-entry" data-keywords="color colour palette text foreground draw">
+      <div class="doc-header">
+        <div class="doc-title">COLOR color_index</div>
+        <span class="doc-category-badge badge-statement">Statement</span>
+      </div>
+      <div class="syntax-box">
+        <b>COLOR</b> &lt;color_index (0..15)&gt;
+      </div>
+      <div class="doc-desc">
+        Sets the default foreground drawing and text color to one of the 16 standard palette colors (0 to 15).
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">COLOR</span> <span class="code-num">14</span>  <span class="code-comment">' Bright Yellow</span>
+<span class="code-num">20</span> <span class="code-kw">PRINT</span> <span class="code-str">"WARNING: SHIELDS LOW!"</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- BEEP -->
+    <div id="cmd_beep" class="doc-entry" data-keywords="beep bell chime sound alert audio">
+      <div class="doc-header">
+        <div class="doc-title">BEEP</div>
+        <span class="doc-category-badge badge-statement">Statement</span>
+      </div>
+      <div class="syntax-box">
+        <b>BEEP</b>
+      </div>
+      <div class="doc-desc">
+        Plays a classic 800 Hz retro square wave alert beep for 120 milliseconds.
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">PRINT</span> <span class="code-str">"ALARM!"</span>: <span class="code-kw">BEEP</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- SLEEP -->
+    <div id="cmd_sleep" class="doc-entry" data-keywords="sleep delay wait pause timer ms">
+      <div class="doc-header">
+        <div class="doc-title">SLEEP milliseconds</div>
+        <span class="doc-category-badge badge-statement">Statement</span>
+      </div>
+      <div class="syntax-box">
+        <b>SLEEP</b> &lt;duration_in_ms&gt;
+      </div>
+      <div class="doc-desc">
+        Suspends execution for the specified number of milliseconds without consuming unnecessary CPU cycles.
+        Crucial for smooth animations and pacing in games.
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">PRINT</span> <span class="code-str">"WAITING 1 SECOND..."</span>
+<span class="code-num">20</span> <span class="code-kw">SLEEP</span> <span class="code-num">1000</span>
+<span class="code-num">30</span> <span class="code-kw">PRINT</span> <span class="code-str">"DONE!"</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- DIM -->
+    <div id="cmd_dim" class="doc-entry" data-keywords="dim dimension array allocate memory list vector">
+      <div class="doc-header">
+        <div class="doc-title">DIM array_name(size)</div>
+        <span class="doc-category-badge badge-statement">Statement</span>
+      </div>
+      <div class="syntax-box">
+        <b>DIM</b> &lt;identifier&gt;(&lt;size&gt;)
+      </div>
+      <div class="doc-desc">
+        Allocates memory for a 1-dimensional array capable of holding up to <code>size</code> elements.
+        Elements are indexed from <code>0</code> to <code>size</code>.
+        String arrays end with <code>$</code> (e.g. <code>NAMES$(10)</code>) and initialize to empty strings.
+        Numeric arrays initialize to 0.0.
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">DIM</span> SCORES(<span class="code-num">5</span>)
+<span class="code-num">20</span> SCORES(<span class="code-num">1</span>) = <span class="code-num">950</span>
+<span class="code-num">30</span> SCORES(<span class="code-num">2</span>) = <span class="code-num">820</span>
+<span class="code-num">40</span> <span class="code-kw">PRINT</span> <span class="code-str">"PLAYER 1 SCORE: "</span>; SCORES(<span class="code-num">1</span>)</pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- SECTION: RETRO GRAPHICS (320x200) -->
+    <!-- ============================================================ -->
+    <div id="section-graphics" class="section-banner">
+      <h2>RETRO GRAPHICS &amp; SPRITES</h2>
+      <span class="section-badge">320 &times; 200 Native Canvas</span>
+    </div>
+
+    <!-- SCREEN -->
+    <div id="cmd_screen" class="doc-entry" data-keywords="screen mode display graphics resolution 320x200">
+      <div class="doc-header">
+        <div class="doc-title">SCREEN mode</div>
+        <span class="doc-category-badge badge-graphics">Graphics</span>
+      </div>
+      <div class="syntax-box">
+        <b>SCREEN</b> &lt;mode (0 or 1)&gt;
+      </div>
+      <div class="doc-desc">
+        Selects the active rendering display mode:
+        <ul style="margin: 6px 0 6px 20px;">
+          <li><b>SCREEN 0</b>: Text terminal output console.</li>
+          <li><b>SCREEN 1</b>: 320 &times; 200 retro bitmap graphics display canvas.</li>
+        </ul>
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">SCREEN</span> <span class="code-num">1</span>  <span class="code-comment">' Switch to retro graphics mode</span>
+<span class="code-num">20</span> <span class="code-kw">CLS</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- PSET -->
+    <div id="cmd_pset" class="doc-entry" data-keywords="pset pixel plot dot coordinate x y color">
+      <div class="doc-header">
+        <div class="doc-title">PSET (X, Y) [, color]</div>
+        <span class="doc-category-badge badge-graphics">Graphics</span>
+      </div>
+      <div class="syntax-box">
+        <b>PSET</b> (<span class="opt">X</span>, <span class="opt">Y</span>) [, &lt;color&gt;]
+      </div>
+      <div class="doc-desc">
+        Plots a single pixel at horizontal coordinate <code>X</code> (0 to 319) and vertical coordinate <code>Y</code> (0 to 199).
+        If <code>color</code> is omitted, the active <code>COLOR</code> is used.
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">SCREEN</span> <span class="code-num">1</span>
+<span class="code-num">20</span> <span class="code-kw">FOR</span> X = <span class="code-num">0</span> <span class="code-kw">TO</span> <span class="code-num">319</span>
+<span class="code-num">30</span>   Y = <span class="code-num">100</span> + <span class="code-fn">SIN</span>(X * <span class="code-num">0.05</span>) * <span class="code-num">40</span>
+<span class="code-num">40</span>   <span class="code-kw">PSET</span> (X, Y), <span class="code-num">10</span>  <span class="code-comment">' Light green wave</span>
+<span class="code-num">50</span> <span class="code-kw">NEXT</span> X</pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- LINE -->
+    <div id="cmd_line" class="doc-entry" data-keywords="line draw bresenham segment connect color">
+      <div class="doc-header">
+        <div class="doc-title">LINE (X1, Y1)-(X2, Y2) [, color]</div>
+        <span class="doc-category-badge badge-graphics">Graphics</span>
+      </div>
+      <div class="syntax-box">
+        <b>LINE</b> (X1, Y1)-(X2, Y2) [, &lt;color&gt;]
+      </div>
+      <div class="doc-desc">
+        Draws a straight line between two coordinate endpoints using hardware-accelerated Bresenham line rasterization.
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">SCREEN</span> <span class="code-num">1</span>
+<span class="code-num">20</span> <span class="code-kw">LINE</span> (<span class="code-num">0</span>, <span class="code-num">0</span>)-(<span class="code-num">319</span>, <span class="code-num">199</span>), <span class="code-num">14</span>  <span class="code-comment">' Diagonal yellow line</span>
+<span class="code-num">30</span> <span class="code-kw">LINE</span> (<span class="code-num">0</span>, <span class="code-num">199</span>)-(<span class="code-num">319</span>, <span class="code-num">0</span>), <span class="code-num">11</span>  <span class="code-comment">' Diagonal cyan line</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- RECT -->
+    <div id="cmd_rect" class="doc-entry" data-keywords="rect rectangle box square fill border outline">
+      <div class="doc-header">
+        <div class="doc-title">RECT (X1, Y1)-(X2, Y2) [, color] [, fill]</div>
+        <span class="doc-category-badge badge-graphics">Graphics</span>
+      </div>
+      <div class="syntax-box">
+        <b>RECT</b> (X1, Y1)-(X2, Y2) [, &lt;color&gt;] [, &lt;fill: 0=outline, 1=filled&gt;]
+      </div>
+      <div class="doc-desc">
+        Draws a rectangle with opposite corners at <code>(X1, Y1)</code> and <code>(X2, Y2)</code>.
+        If <code>fill</code> is <code>1</code>, renders a solid filled rectangle; if <code>0</code> or omitted, renders an outline border.
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">SCREEN</span> <span class="code-num">1</span>
+<span class="code-num">20</span> <span class="code-kw">RECT</span> (<span class="code-num">20</span>, <span class="code-num">20</span>)-(<span class="code-num">120</span>, <span class="code-num">80</span>), <span class="code-num">1</span>, <span class="code-num">1</span>   <span class="code-comment">' Filled blue box</span>
+<span class="code-num">30</span> <span class="code-kw">RECT</span> (<span class="code-num">20</span>, <span class="code-num">20</span>)-(<span class="code-num">120</span>, <span class="code-num">80</span>), <span class="code-num">15</span>, <span class="code-num">0</span>  <span class="code-comment">' White border outline</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- CIRCLE -->
+    <div id="cmd_circle" class="doc-entry" data-keywords="circle radius center round arc fill disk">
+      <div class="doc-header">
+        <div class="doc-title">CIRCLE (X, Y), radius [, color] [, fill]</div>
+        <span class="doc-category-badge badge-graphics">Graphics</span>
+      </div>
+      <div class="syntax-box">
+        <b>CIRCLE</b> (X, Y), &lt;radius&gt; [, &lt;color&gt;] [, &lt;fill: 0=outline, 1=filled&gt;]
+      </div>
+      <div class="doc-desc">
+        Draws a circle centered at coordinate <code>(X, Y)</code> with radius <code>radius</code>.
+        If <code>fill</code> is <code>1</code>, renders a solid filled disc.
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">SCREEN</span> <span class="code-num">1</span>
+<span class="code-num">20</span> <span class="code-kw">CIRCLE</span> (<span class="code-num">160</span>, <span class="code-num">100</span>), <span class="code-num">45</span>, <span class="code-num">12</span>, <span class="code-num">1</span>  <span class="code-comment">' Filled bright red sun</span>
+<span class="code-num">30</span> <span class="code-kw">CIRCLE</span> (<span class="code-num">160</span>, <span class="code-num">100</span>), <span class="code-num">50</span>, <span class="code-num">14</span>, <span class="code-num">0</span>  <span class="code-comment">' Yellow ring</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- 16-COLOR PALETTE REFERENCE -->
+    <div id="palette_ref" class="doc-entry" data-keywords="palette color colors table index swatches">
+      <div class="doc-header">
+        <div class="doc-title">Standard 16-Color Palette Table</div>
+        <span class="doc-category-badge badge-graphics">Color Reference</span>
+      </div>
+      <div class="doc-desc">
+        Index values (0 to 15) for use with <code>COLOR</code>, <code>PSET</code>, <code>LINE</code>, <code>RECT</code>, <code>CIRCLE</code>, and <code>SPRITE</code>:
+      </div>
+      <div class="palette-grid">
+        <div class="palette-item"><div class="palette-swatch" style="background:#000000;"></div><span>0: Black</span></div>
+        <div class="palette-item"><div class="palette-swatch" style="background:#1d4ed8;"></div><span>1: Blue</span></div>
+        <div class="palette-item"><div class="palette-swatch" style="background:#15803d;"></div><span>2: Green</span></div>
+        <div class="palette-item"><div class="palette-swatch" style="background:#0e7490;"></div><span>3: Cyan</span></div>
+        <div class="palette-item"><div class="palette-swatch" style="background:#b91c1c;"></div><span>4: Red</span></div>
+        <div class="palette-item"><div class="palette-swatch" style="background:#a21caf;"></div><span>5: Magenta</span></div>
+        <div class="palette-item"><div class="palette-swatch" style="background:#a16207;"></div><span>6: Brown</span></div>
+        <div class="palette-item"><div class="palette-swatch" style="background:#cbd5e1;"></div><span>7: Light Gray</span></div>
+        <div class="palette-item"><div class="palette-swatch" style="background:#475569;"></div><span>8: Dark Gray</span></div>
+        <div class="palette-item"><div class="palette-swatch" style="background:#60a5fa;"></div><span>9: Bright Blue</span></div>
+        <div class="palette-item"><div class="palette-swatch" style="background:#4ade80;"></div><span>10: Bright Green</span></div>
+        <div class="palette-item"><div class="palette-swatch" style="background:#38bdf8;"></div><span>11: Bright Cyan</span></div>
+        <div class="palette-item"><div class="palette-swatch" style="background:#f87171;"></div><span>12: Bright Red</span></div>
+        <div class="palette-item"><div class="palette-swatch" style="background:#f0abfc;"></div><span>13: Bright Pink</span></div>
+        <div class="palette-item"><div class="palette-swatch" style="background:#fef08a;"></div><span>14: Yellow</span></div>
+        <div class="palette-item"><div class="palette-swatch" style="background:#ffffff;"></div><span>15: White</span></div>
+      </div>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- SPRITEDEF -->
+    <div id="cmd_spritedef" class="doc-entry" data-keywords="spritedef sprite define pattern matrix bitmap 8x8 16x16">
+      <div class="doc-header">
+        <div class="doc-title">SPRITEDEF id, size, pattern</div>
+        <span class="doc-category-badge badge-graphics">Sprites</span>
+      </div>
+      <div class="syntax-box">
+        <b>SPRITEDEF</b> &lt;id&gt;, &lt;size: 8 or 16&gt;, &lt;"pattern string"&gt;
+      </div>
+      <div class="doc-desc">
+        Defines a sprite graphic bitmask with a unique <code>id</code>.
+        The pattern string is composed of characters (e.g. <code>.</code> for transparent, <code>#</code> or <code>1</code> for solid pixel).
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">SPRITEDEF</span> <span class="code-num">1</span>, <span class="code-num">8</span>, <span class="code-str">"..####....####..##....####....####....####....##"</span>
+<span class="code-num">20</span> <span class="code-kw">SPRITE</span> <span class="code-num">1</span>, <span class="code-num">100</span>, <span class="code-num">50</span>, <span class="code-num">1</span>, <span class="code-num">14</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- SPRITE -->
+    <div id="cmd_sprite" class="doc-entry" data-keywords="sprite place show render position x y">
+      <div class="doc-header">
+        <div class="doc-title">SPRITE id, X, Y [, pattern] [, color]</div>
+        <span class="doc-category-badge badge-graphics">Sprites</span>
+      </div>
+      <div class="syntax-box">
+        <b>SPRITE</b> &lt;id&gt;, &lt;X&gt;, &lt;Y&gt; [, &lt;pattern&gt;] [, &lt;color&gt;]
+      </div>
+      <div class="doc-desc">
+        Places or repositions sprite <code>id</code> at screen coordinates <code>(X, Y)</code>.
+      </div>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- SPRITEMOVE -->
+    <div id="cmd_spritemove" class="doc-entry" data-keywords="spritemove move offset delta dx dy translate">
+      <div class="doc-header">
+        <div class="doc-title">SPRITEMOVE id, dX, dY</div>
+        <span class="doc-category-badge badge-graphics">Sprites</span>
+      </div>
+      <div class="syntax-box">
+        <b>SPRITEMOVE</b> &lt;id&gt;, &lt;dX&gt;, &lt;dY&gt;
+      </div>
+      <div class="doc-desc">
+        Moves sprite <code>id</code> relative to its current screen position by horizontal offset <code>dX</code> and vertical offset <code>dY</code>.
+      </div>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- SPRITESHOW -->
+    <div id="cmd_spriteshow" class="doc-entry" data-keywords="spriteshow visibility hide show toggle">
+      <div class="doc-header">
+        <div class="doc-title">SPRITESHOW id, visible</div>
+        <span class="doc-category-badge badge-graphics">Sprites</span>
+      </div>
+      <div class="syntax-box">
+        <b>SPRITESHOW</b> &lt;id&gt;, &lt;visible: 0 or 1&gt;
+      </div>
+      <div class="doc-desc">
+        Sets sprite visibility. Passing <code>1</code> displays the sprite, while <code>0</code> hides it.
+      </div>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- SPRITEHIT -->
+    <div id="fn_spritehit" class="doc-entry" data-keywords="spritehit collision hit detect overlap touch">
+      <div class="doc-header">
+        <div class="doc-title">SPRITEHIT(id1, id2)</div>
+        <span class="doc-category-badge badge-function">Sprites</span>
+      </div>
+      <div class="syntax-box">
+        result = <b>SPRITEHIT</b>(&lt;id1&gt;, &lt;id2&gt;)
+      </div>
+      <div class="doc-desc">
+        Checks bounding-box collision between sprite <code>id1</code> and sprite <code>id2</code>.
+        Returns <code>1</code> if the sprites intersect; returns <code>0</code> otherwise.
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">IF</span> <span class="code-fn">SPRITEHIT</span>(<span class="code-num">1</span>, <span class="code-num">2</span>) <span class="code-kw">THEN</span>
+<span class="code-num">20</span>   <span class="code-kw">SFX</span> <span class="code-num">2</span>  <span class="code-comment">' Explosion sound</span>
+<span class="code-num">30</span>   <span class="code-kw">PRINT</span> <span class="code-str">"COLLISION DETECTED!"</span>
+<span class="code-num">40</span> <span class="code-kw">END</span> <span class="code-kw">IF</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- SECTION: SOUND & SFX SYNTHESIZER -->
+    <!-- ============================================================ -->
+    <div id="section-audio" class="section-banner">
+      <h2>SOUND &amp; SFX SYNTHESIZER</h2>
+      <span class="section-badge">Real-Time DSP</span>
+    </div>
+
+    <!-- SOUND -->
+    <div id="cmd_sound" class="doc-entry" data-keywords="sound synth tone freq frequency duration waveform wave audio">
+      <div class="doc-header">
+        <div class="doc-title">SOUND freqHz, durationMs [, waveType]</div>
+        <span class="doc-category-badge badge-audio">Audio</span>
+      </div>
+      <div class="syntax-box">
+        <b>SOUND</b> &lt;freqHz&gt;, &lt;durationMs&gt; [, &lt;waveType: 0..4&gt;]
+      </div>
+      <div class="doc-desc">
+        Synthesizes an audio tone at frequency <code>freqHz</code> (e.g. 20 Hz to 20,000 Hz) for <code>durationMs</code> milliseconds.
+        The optional <code>waveType</code> parameter selects the synthesis oscillator waveform:
+      </div>
+      <table class="spec-table">
+        <tr><th>ID</th><th>Waveform</th><th>Acoustic Character</th></tr>
+        <tr><td><code>0</code></td><td>Square Wave (Default)</td><td>Punchy, classic chiptune 8-bit computer buzz.</td></tr>
+        <tr><td><code>1</code></td><td>Triangle Wave</td><td>Warm, mellow flute or deep bass tone.</td></tr>
+        <tr><td><code>2</code></td><td>Sawtooth Wave</td><td>Bright, sharp synth brass with rich harmonics.</td></tr>
+        <tr><td><code>3</code></td><td>Sine Wave</td><td>Pure, smooth fundamental tone.</td></tr>
+        <tr><td><code>4</code></td><td>White Noise</td><td>Hiss, explosions, crashes, and percussion.</td></tr>
+      </table>
+      <div class="example-header">Example: Arpeggio:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">SOUND</span> <span class="code-num">440</span>, <span class="code-num">150</span>, <span class="code-num">0</span>  <span class="code-comment">' A4 Square wave</span>
+<span class="code-num">20</span> <span class="code-kw">SOUND</span> <span class="code-num">554</span>, <span class="code-num">150</span>, <span class="code-num">0</span>  <span class="code-comment">' C#5</span>
+<span class="code-num">30</span> <span class="code-kw">SOUND</span> <span class="code-num">659</span>, <span class="code-num">250</span>, <span class="code-num">0</span>  <span class="code-comment">' E5</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- SFX -->
+    <div id="cmd_sfx" class="doc-entry" data-keywords="sfx sound effect arcade laser jump explosion coin powerup preset">
+      <div class="doc-header">
+        <div class="doc-title">SFX preset_id</div>
+        <span class="doc-category-badge badge-audio">Audio</span>
+      </div>
+      <div class="syntax-box">
+        <b>SFX</b> &lt;preset_id (0..4)&gt;
+      </div>
+      <div class="doc-desc">
+        Triggers instant built-in arcade sound effect presets engineered with frequency modulation envelopes:
+      </div>
+      <table class="spec-table">
+        <tr><th>Preset ID</th><th>Effect Name</th><th>Description</th></tr>
+        <tr><td><code>0</code></td><td>Laser Blaster</td><td>Rapid downwards pitch chirp (1200 Hz down to 200 Hz).</td></tr>
+        <tr><td><code>1</code></td><td>Jump</td><td>Smooth upwards pitch sweep (180 Hz up to 600 Hz).</td></tr>
+        <tr><td><code>2</code></td><td>Explosion</td><td>Heavy white noise burst with low-frequency rumble.</td></tr>
+        <tr><td><code>3</code></td><td>Coin / Pickup</td><td>Two-tone bright major interval chime (987 Hz &rarr; 1318 Hz).</td></tr>
+        <tr><td><code>4</code></td><td>Power-up</td><td>Multi-step fanfare pitch glide.</td></tr>
+      </table>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">PRINT</span> <span class="code-str">"FIRE WEAPON!"</span>
+<span class="code-num">20</span> <span class="code-kw">SFX</span> <span class="code-num">0</span>  <span class="code-comment">' Laser</span>
+<span class="code-num">30</span> <span class="code-kw">SLEEP</span> <span class="code-num">300</span>
+<span class="code-num">40</span> <span class="code-kw">SFX</span> <span class="code-num">2</span>  <span class="code-comment">' Target destroyed!</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- SECTION: BUILT-IN FUNCTIONS -->
+    <!-- ============================================================ -->
+    <div id="section-functions" class="section-banner">
+      <h2>BUILT-IN FUNCTIONS</h2>
+      <span class="section-badge">Math &amp; String Math</span>
+    </div>
+
+    <!-- INT -->
+    <div id="fn_int" class="doc-entry" data-keywords="int integer floor truncate round">
+      <div class="doc-header">
+        <div class="doc-title">INT(number)</div>
+        <span class="doc-category-badge badge-function">Function</span>
+      </div>
+      <div class="syntax-box">result = <b>INT</b>(&lt;number&gt;)</div>
+      <div class="doc-desc">Returns the largest integer less than or equal to the argument (mathematical floor).</div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">PRINT</span> <span class="code-fn">INT</span>(<span class="code-num">4.9</span>)   <span class="code-comment">' Prints 4</span>
+<span class="code-num">20</span> <span class="code-kw">PRINT</span> <span class="code-fn">INT</span>(-<span class="code-num">2.3</span>)  <span class="code-comment">' Prints -3</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- ABS -->
+    <div id="fn_abs" class="doc-entry" data-keywords="abs absolute magnitude positive">
+      <div class="doc-header">
+        <div class="doc-title">ABS(number)</div>
+        <span class="doc-category-badge badge-function">Function</span>
+      </div>
+      <div class="syntax-box">result = <b>ABS</b>(&lt;number&gt;)</div>
+      <div class="doc-desc">Returns the non-negative absolute magnitude of the numeric argument.</div>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- SQR -->
+    <div id="fn_sqr" class="doc-entry" data-keywords="sqr square root math radical">
+      <div class="doc-header">
+        <div class="doc-title">SQR(number)</div>
+        <span class="doc-category-badge badge-function">Function</span>
+      </div>
+      <div class="syntax-box">result = <b>SQR</b>(&lt;number&gt;)</div>
+      <div class="doc-desc">Calculates the positive square root of a non-negative number. Returns 0 if argument is negative.</div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> HYPOTENUSE = <span class="code-fn">SQR</span>(<span class="code-num">3</span>^<span class="code-num">2</span> + <span class="code-num">4</span>^<span class="code-num">2</span>)
+<span class="code-num">20</span> <span class="code-kw">PRINT</span> <span class="code-str">"HYPOTENUSE = "</span>; HYPOTENUSE  <span class="code-comment">' Prints 5</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- RND -->
+    <div id="fn_rnd" class="doc-entry" data-keywords="rnd random number chance dice roll">
+      <div class="doc-header">
+        <div class="doc-title">RND([limit])</div>
+        <span class="doc-category-badge badge-function">Function</span>
+      </div>
+      <div class="syntax-box">result = <b>RND</b>([&lt;limit&gt;])</div>
+      <div class="doc-desc">
+        Generates pseudo-random numbers.
+        If called with no arguments or <code>RND(1)</code>, returns a floating-point number in the range <code>[0.0, 1.0)</code>.
+        If given an argument <code>N</code>, returns a random floating-point value between <code>0.0</code> and <code>N</code>.
+      </div>
+      <div class="example-header">Example: Rolling a 6-sided die:</div>
+      <pre class="code-block"><span class="code-num">10</span> DIE = <span class="code-fn">INT</span>(<span class="code-fn">RND</span>(<span class="code-num">6</span>)) + <span class="code-num">1</span>
+<span class="code-num">20</span> <span class="code-kw">PRINT</span> <span class="code-str">"YOU ROLLED: "</span>; DIE</pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- SIN, COS, TAN -->
+    <div id="fn_sin" class="doc-entry" data-keywords="sin cos tan trigonometry angle radians math">
+      <span id="fn_cos"></span><span id="fn_tan"></span>
+      <div class="doc-header">
+        <div class="doc-title">SIN(x) / COS(x) / TAN(x)</div>
+        <span class="doc-category-badge badge-function">Function</span>
+      </div>
+      <div class="syntax-box">
+        result = <b>SIN</b>(&lt;radians&gt;)<br>
+        result = <b>COS</b>(&lt;radians&gt;)<br>
+        result = <b>TAN</b>(&lt;radians&gt;)
+      </div>
+      <div class="doc-desc">
+        Calculates the standard trigonometric sine, cosine, or tangent of an angle given in radians.
+        To convert degrees to radians: <code>RAD = DEG * 3.14159 / 180</code>.
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> PI = <span class="code-num">3.1415926</span>
+<span class="code-num">20</span> <span class="code-kw">PRINT</span> <span class="code-str">"SIN(PI/2) = "</span>; <span class="code-fn">SIN</span>(PI / <span class="code-num">2</span>)  <span class="code-comment">' Prints 1</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- LEN -->
+    <div id="fn_len" class="doc-entry" data-keywords="len length string size characters">
+      <div class="doc-header">
+        <div class="doc-title">LEN(string$)</div>
+        <span class="doc-category-badge badge-function">Function</span>
+      </div>
+      <div class="syntax-box">result = <b>LEN</b>(&lt;string$&gt;)</div>
+      <div class="doc-desc">Returns the total number of characters in the string argument.</div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> S$ = <span class="code-str">"RETRO"</span>
+<span class="code-num">20</span> <span class="code-kw">PRINT</span> <span class="code-fn">LEN</span>(S$)  <span class="code-comment">' Prints 5</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- STR$ and VAL -->
+    <div id="fn_str" class="doc-entry" data-keywords="str$ str val convert string parse number">
+      <span id="fn_val"></span>
+      <div class="doc-header">
+        <div class="doc-title">STR$(number) / VAL(string$)</div>
+        <span class="doc-category-badge badge-function">Function</span>
+      </div>
+      <div class="syntax-box">
+        strResult$ = <b>STR$</b>(&lt;number&gt;)<br>
+        numResult = <b>VAL</b>(&lt;string$&gt;)
+      </div>
+      <div class="doc-desc">
+        <code>STR$</code> converts a numeric value into its text string equivalent.
+        <code>VAL</code> parses a string containing numbers into a floating-point numeric value (returning 0 if invalid).
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> T$ = <span class="code-str">"128.5"</span>
+<span class="code-num">20</span> N = <span class="code-fn">VAL</span>(T$) + <span class="code-num">10</span>
+<span class="code-num">30</span> <span class="code-kw">PRINT</span> <span class="code-str">"RESULT = "</span>; <span class="code-fn">STR$</span>(N)  <span class="code-comment">' Prints 138.5</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- CHR$ and ASC -->
+    <div id="fn_chr" class="doc-entry" data-keywords="chr$ chr asc ascii character code convert">
+      <span id="fn_asc"></span>
+      <div class="doc-header">
+        <div class="doc-title">CHR$(code) / ASC(string$)</div>
+        <span class="doc-category-badge badge-function">Function</span>
+      </div>
+      <div class="syntax-box">
+        char$ = <b>CHR$</b>(&lt;ascii_code&gt;)<br>
+        code = <b>ASC</b>(&lt;string$&gt;)
+      </div>
+      <div class="doc-desc">
+        <code>CHR$</code> produces a one-character string corresponding to the integer ASCII code (e.g. 65 &rarr; "A").
+        <code>ASC</code> returns the integer ASCII value of the first character of the string argument.
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">PRINT</span> <span class="code-fn">CHR$</span>(<span class="code-num">65</span>)            <span class="code-comment">' Prints 'A'</span>
+<span class="code-num">20</span> <span class="code-kw">PRINT</span> <span class="code-fn">ASC</span>(<span class="code-str">"Z"</span>)            <span class="code-comment">' Prints 90</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- TAB -->
+    <div id="fn_tab" class="doc-entry" data-keywords="tab formatting print column indent">
+      <div class="doc-header">
+        <div class="doc-title">TAB(column)</div>
+        <span class="doc-category-badge badge-function">Function</span>
+      </div>
+      <div class="syntax-box"><b>PRINT</b> <b>TAB</b>(&lt;col&gt;); ...</div>
+      <div class="doc-desc">
+        Used exclusively inside a <code>PRINT</code> statement to move the print position to column <code>col</code>.
+      </div>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- SECTION: OPERATORS -->
+    <!-- ============================================================ -->
+    <div id="section-operators" class="section-banner">
+      <h2>OPERATORS &amp; LOGIC</h2>
+      <span class="section-badge">Math &amp; Comparison</span>
+    </div>
+
+    <!-- Arithmetic: +, -, *, /, ^, MOD -->
+    <div id="op_add" class="doc-entry" data-keywords="+ add addition concat string plus operator">
+      <div class="doc-header">
+        <div class="doc-title">+ (Addition &amp; String Concatenation)</div>
+        <span class="doc-category-badge badge-operator">Operator</span>
+      </div>
+      <div class="syntax-box">
+        num = expr1 <b>+</b> expr2<br>
+        str$ = str1$ <b>+</b> str2$
+      </div>
+      <div class="doc-desc">Adds two numeric expressions together, or concatenates two strings into a single combined string.</div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> GREET$ = <span class="code-str">"HELLO "</span> + <span class="code-str">"WORLD"</span>
+<span class="code-num">20</span> TOTAL = <span class="code-num">15</span> + <span class="code-num">25</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <div id="op_sub" class="doc-entry" data-keywords="- subtract minus negate unary operator">
+      <div class="doc-header">
+        <div class="doc-title">- (Subtraction &amp; Unary Negation)</div>
+        <span class="doc-category-badge badge-operator">Operator</span>
+      </div>
+      <div class="syntax-box">
+        result = expr1 <b>-</b> expr2<br>
+        neg = <b>-</b>expr
+      </div>
+      <div class="doc-desc">Subtracts the right operand from the left operand, or negates the sign of an expression.</div>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <div id="op_mul" class="doc-entry" data-keywords="* multiply times product operator">
+      <div class="doc-header">
+        <div class="doc-title">* (Multiplication)</div>
+        <span class="doc-category-badge badge-operator">Operator</span>
+      </div>
+      <div class="syntax-box">result = expr1 <b>*</b> expr2</div>
+      <div class="doc-desc">Multiplies two numeric operands together.</div>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <div id="op_div" class="doc-entry" data-keywords="/ divide division quotient operator">
+      <div class="doc-header">
+        <div class="doc-title">/ (Division)</div>
+        <span class="doc-category-badge badge-operator">Operator</span>
+      </div>
+      <div class="syntax-box">result = expr1 <b>/</b> expr2</div>
+      <div class="doc-desc">Divides the left operand by the right operand, yielding a floating-point quotient. Division by zero yields an error.</div>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <div id="op_pow" class="doc-entry" data-keywords="^ power exponentiation square cube operator">
+      <div class="doc-header">
+        <div class="doc-title">^ (Exponentiation)</div>
+        <span class="doc-category-badge badge-operator">Operator</span>
+      </div>
+      <div class="syntax-box">result = base <b>^</b> exponent</div>
+      <div class="doc-desc">Raises <code>base</code> to the power of <code>exponent</code>. Higher precedence than multiplication and addition.</div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">PRINT</span> <span class="code-num">2</span> ^ <span class="code-num">8</span>   <span class="code-comment">' Prints 256</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <div id="op_mod" class="doc-entry" data-keywords="mod modulo remainder divide operator">
+      <div class="doc-header">
+        <div class="doc-title">MOD (Modulo Remainder)</div>
+        <span class="doc-category-badge badge-operator">Operator</span>
+      </div>
+      <div class="syntax-box">remainder = expr1 <b>MOD</b> expr2</div>
+      <div class="doc-desc">Computes the remainder after integer division of <code>expr1</code> by <code>expr2</code>. Useful for cycles and wrap-arounds.</div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">PRINT</span> <span class="code-num">17</span> <span class="code-kw">MOD</span> <span class="code-num">5</span>  <span class="code-comment">' Prints 2</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- Comparison: =, <>, <, <=, >, >= -->
+    <div id="op_eq" class="doc-entry" data-keywords="= equal equality compare operator">
+      <div class="doc-header">
+        <div class="doc-title">= (Equal)</div>
+        <span class="doc-category-badge badge-operator">Comparison</span>
+      </div>
+      <div class="syntax-box">condition = (expr1 <b>=</b> expr2)</div>
+      <div class="doc-desc">Returns <code>1</code> (True) if both operands are equal; returns <code>0</code> (False) otherwise. Supports both numbers and strings.</div>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <div id="op_neq" class="doc-entry" data-keywords="<> != not equal difference compare operator">
+      <div class="doc-header">
+        <div class="doc-title">&lt;&gt; (Not Equal)</div>
+        <span class="doc-category-badge badge-operator">Comparison</span>
+      </div>
+      <div class="syntax-box">condition = (expr1 <b>&lt;&gt;</b> expr2)</div>
+      <div class="doc-desc">Returns <code>1</code> (True) if operands are not equal; returns <code>0</code> (False) otherwise.</div>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <div id="op_lt" class="doc-entry" data-keywords="< <= > >= less greater compare operator relational">
+      <span id="op_lte"></span><span id="op_gt"></span><span id="op_gte"></span>
+      <div class="doc-header">
+        <div class="doc-title">&lt;, &lt;=, &gt;, &gt;= (Relational Comparisons)</div>
+        <span class="doc-category-badge badge-operator">Comparison</span>
+      </div>
+      <div class="syntax-box">
+        expr1 <b>&lt;</b> expr2 &nbsp;&nbsp;(Less than)<br>
+        expr1 <b>&lt;=</b> expr2 (Less than or equal)<br>
+        expr1 <b>&gt;</b> expr2 &nbsp;&nbsp;(Greater than)<br>
+        expr1 <b>&gt;=</b> expr2 (Greater than or equal)
+      </div>
+      <div class="doc-desc">Performs standard relational comparisons, evaluating to <code>1</code> (True) or <code>0</code> (False).</div>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- Logical: AND, OR, NOT -->
+    <div id="op_and" class="doc-entry" data-keywords="and logic conjunction boolean operator">
+      <div class="doc-header">
+        <div class="doc-title">AND (Logical Conjunction)</div>
+        <span class="doc-category-badge badge-operator">Logic</span>
+      </div>
+      <div class="syntax-box">result = cond1 <b>AND</b> cond2</div>
+      <div class="doc-desc">Returns <code>1</code> if both <code>cond1</code> and <code>cond2</code> are non-zero; returns <code>0</code> otherwise.</div>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <div id="op_or" class="doc-entry" data-keywords="or logic disjunction boolean operator">
+      <div class="doc-header">
+        <div class="doc-title">OR (Logical Disjunction)</div>
+        <span class="doc-category-badge badge-operator">Logic</span>
+      </div>
+      <div class="syntax-box">result = cond1 <b>OR</b> cond2</div>
+      <div class="doc-desc">Returns <code>1</code> if either <code>cond1</code> or <code>cond2</code> (or both) are non-zero; returns <code>0</code> otherwise.</div>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <div id="op_not" class="doc-entry" data-keywords="not logic negate invert boolean operator">
+      <div class="doc-header">
+        <div class="doc-title">NOT (Logical Inversion)</div>
+        <span class="doc-category-badge badge-operator">Logic</span>
+      </div>
+      <div class="syntax-box">result = <b>NOT</b> condition</div>
+      <div class="doc-desc">Inverts a boolean condition. If <code>condition</code> is zero (False), returns <code>1</code> (True); otherwise returns <code>0</code>.</div>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+  </div> <!-- /container -->
+
+  <!-- Floating Back to Top Button -->
+  <a href="#toc" class="back-to-top" title="Jump to Table of Contents">&uarr; TOP</a>
+
+  <!-- Interactive JavaScript Filter -->
+  <script>
+    function filterDocs(rawQuery) {
+      const q = (rawQuery || '').trim().toLowerCase();
+      const entries = document.querySelectorAll('.doc-entry');
+      const tocChips = document.querySelectorAll('.toc-chip');
+
+      if (!q) {
+        entries.forEach(el => el.classList.remove('hidden-by-search'));
+        tocChips.forEach(el => el.style.opacity = '1');
+        return;
+      }
+
+      entries.forEach(el => {
+        const text = (el.innerText || '').toLowerCase();
+        const keywords = (el.getAttribute('data-keywords') || '').toLowerCase();
+        const id = (el.id || '').toLowerCase();
+        if (text.includes(q) || keywords.includes(q) || id.includes(q)) {
+          el.classList.remove('hidden-by-search');
+        } else {
+          el.classList.add('hidden-by-search');
+        }
+      });
+
+      tocChips.forEach(el => {
+        const text = (el.innerText || '').toLowerCase();
+        const href = (el.getAttribute('href') || '').toLowerCase();
+        if (text.includes(q) || href.includes(q)) {
+          el.style.opacity = '1';
+        } else {
+          el.style.opacity = '0.25';
+        }
+      });
+    }
+
+    // Scroll to anchor on load or hash change if specified
+    window.addEventListener('DOMContentLoaded', () => {
+      if (window.location.hash) {
+        const target = document.querySelector(window.location.hash);
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth' });
+        }
+      }
+    });
+  </script>
+</body>
+</html>
