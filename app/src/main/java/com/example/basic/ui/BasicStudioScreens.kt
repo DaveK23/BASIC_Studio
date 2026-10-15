@@ -59,6 +59,10 @@ import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.TextRange
 import com.example.basic.docs.BasicDocHelper
 import com.example.basic.docs.DocEntry
@@ -877,84 +881,134 @@ fun EditorScreen(
         }
 
         // Code editor area with line numbers and breakpoint toggling
-        Row(modifier = Modifier.fillMaxSize()) {
-            // Line numbers / Gutter column
-            LazyColumn(
-                modifier = Modifier
-                    .width(44.dp)
-                    .fillMaxHeight()
-                    .background(Color(0xFF0F172A))
-                    .padding(vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                items(lines.size) { index ->
-                    val lineNum = index + 1
-                    val hasBreakpoint = breakpoints.contains(lineNum)
-                    val isCurrent = currentDebugLine == lineNum
+        val lineHeight = 24.sp
+        val density = LocalDensity.current
+        val lineHeightDp = with(density) { lineHeight.toDp() }
+        val verticalScrollState = rememberScrollState()
+        val horizontalScrollState = rememberScrollState()
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(24.dp)
-                            .clickable { viewModel.toggleBreakpoint(lineNum) }
-                            .padding(horizontal = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        if (hasBreakpoint) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFFEF4444))
-                            )
-                        } else if (isCurrent) {
-                            Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                contentDescription = "Current debug line",
-                                tint = TerminalAmber,
-                                modifier = Modifier.size(10.dp)
-                            )
-                        } else {
-                            Spacer(modifier = Modifier.size(8.dp))
-                        }
-
-                        Text(
-                            text = "$lineNum",
-                            color = if (isCurrent) TerminalAmber else Color(0xFF64748B),
-                            fontSize = 11.sp,
-                            fontFamily = monoFont
-                        )
-                    }
+        // Auto-scroll to current debug line during debugging
+        LaunchedEffect(currentDebugLine) {
+            currentDebugLine?.let { line ->
+                if (line > 0 && lines.isNotEmpty()) {
+                    val lineHeightPx = with(density) { lineHeightDp.toPx() }
+                    val targetY = ((line - 1) * lineHeightPx - 160).toInt().coerceAtLeast(0)
+                    verticalScrollState.animateScrollTo(targetY)
                 }
             }
+        }
 
-            // Code input field
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(TerminalBg)
+        ) {
+            // Persistent background gutter panel so left 48.dp is always dark slate full height
             Box(
                 modifier = Modifier
-                    .weight(1f)
                     .fillMaxHeight()
-                    .padding(8.dp)
+                    .width(48.dp)
+                    .background(Color(0xFF0F172A))
+            )
+
+            // Gutter vertical separator line
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .padding(start = 48.dp)
+                    .width(1.dp)
+                    .background(CardBorder)
+            )
+
+            // Unified vertically-scrollable Row: line numbers gutter + code editor ALWAYS scroll in unison
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(verticalScrollState)
             ) {
-                BasicTextField(
-                    value = textFieldValue,
-                    onValueChange = { newValue ->
-                        textFieldValue = newValue
-                        if (newValue.text != code) {
-                            viewModel.updateCode(newValue.text)
-                        }
-                    },
-                    textStyle = TextStyle(
-                        fontFamily = monoFont,
-                        fontSize = 13.sp,
-                        color = Color(0xFFE2E8F0),
-                        lineHeight = 24.sp
-                    ),
-                    cursorBrush = SolidColor(TerminalCyan),
+                // Line numbers / Breakpoints gutter column
+                Column(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .testTag("code_editor_field")
-                )
+                        .width(48.dp)
+                        .padding(top = 8.dp, bottom = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    lines.forEachIndexed { index, _ ->
+                        val lineNum = index + 1
+                        val hasBreakpoint = breakpoints.contains(lineNum)
+                        val isCurrent = currentDebugLine == lineNum
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(lineHeightDp)
+                                .clickable { viewModel.toggleBreakpoint(lineNum) }
+                                .padding(horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            if (hasBreakpoint) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFEF4444))
+                                )
+                            } else if (isCurrent) {
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = "Current debug line",
+                                    tint = TerminalAmber,
+                                    modifier = Modifier.size(10.dp)
+                                )
+                            } else {
+                                Spacer(modifier = Modifier.size(8.dp))
+                            }
+
+                            Text(
+                                text = "$lineNum",
+                                color = if (isCurrent) TerminalAmber else Color(0xFF64748B),
+                                fontSize = 11.sp,
+                                fontFamily = monoFont
+                            )
+                        }
+                    }
+                }
+
+                // Code input field
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .horizontalScroll(horizontalScrollState)
+                        .padding(top = 8.dp, bottom = 32.dp, start = 8.dp, end = 16.dp)
+                ) {
+                    BasicTextField(
+                        value = textFieldValue,
+                        onValueChange = { newValue ->
+                            textFieldValue = newValue
+                            if (newValue.text != code) {
+                                viewModel.updateCode(newValue.text)
+                            }
+                        },
+                        visualTransformation = { text ->
+                            TransformedText(
+                                BasicSyntaxHighlighter.highlight(text.text, monoFont),
+                                OffsetMapping.Identity
+                            )
+                        },
+                        textStyle = TextStyle(
+                            fontFamily = monoFont,
+                            fontSize = 13.sp,
+                            color = Color(0xFFE2E8F0),
+                            lineHeight = lineHeight,
+                            platformStyle = PlatformTextStyle(includeFontPadding = false)
+                        ),
+                        cursorBrush = SolidColor(TerminalCyan),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("code_editor_field")
+                    )
+                }
             }
         }
     }
