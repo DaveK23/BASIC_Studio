@@ -65,6 +65,7 @@ class ApkIconExportTest {
 
         var foundAppendChunk = false
         var foundRetroGraphics = false
+        var foundRetroController = false
 
         java.util.zip.ZipFile(assetApk!!).use { zip ->
             val entries = zip.entries()
@@ -75,11 +76,13 @@ class ApkIconExportTest {
                     val text = String(bytes, Charsets.ISO_8859_1)
                     if (text.contains("appendChunk")) foundAppendChunk = true
                     if (text.contains("RetroGraphicsCanvas")) foundRetroGraphics = true
+                    if (text.contains("RetroControllerOverlay")) foundRetroController = true
                 }
             }
         }
 
         assertTrue("runner-base.apk must contain appendChunk for PRINT_SEMI inline concatenation", foundAppendChunk)
         assertTrue("runner-base.apk must contain RetroGraphicsCanvas for graphics screen mode", foundRetroGraphics)
+        assertTrue("runner-base.apk must contain RetroControllerOverlay for on-screen joystick and fire button", foundRetroController)
     }
 }
