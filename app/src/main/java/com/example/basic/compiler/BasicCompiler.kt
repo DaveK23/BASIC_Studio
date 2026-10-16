@@ -186,6 +186,7 @@ class BasicCompiler {
                 TokenType.SPRITE -> parseSprite(sourceLine, basicLineNum)
                 TokenType.SPRITEMOVE -> parseSpriteMove(sourceLine, basicLineNum)
                 TokenType.SPRITESHOW -> parseSpriteShow(sourceLine, basicLineNum)
+                TokenType.JOYSTICK, TokenType.CONTROLLER -> parseJoystick(sourceLine, basicLineNum)
                 TokenType.IDENTIFIER -> {
                     // Implicit assignment e.g. A = 5 or A(1) = 5
                     parseAssignment(sourceLine, basicLineNum)
@@ -427,6 +428,18 @@ class BasicCompiler {
             consume(TokenType.COMMA, "Expected ',' between id and visible flag in SPRITESHOW")
             parseExpression(sourceLine) // visible (0 or 1)
             emit(OpCode.SPRITESHOW, sourceLine = sourceLine, sourceLineNum = basicLineNum ?: -1)
+        }
+
+        private fun parseJoystick(sourceLine: Int, basicLineNum: Int?) {
+            advance() // consume JOYSTICK or CONTROLLER
+            // Argument is optional: JOYSTICK 1, JOYSTICK 0, or just JOYSTICK (defaults to 1)
+            if (!isAtEnd() && peek().type != TokenType.NEWLINE && peek().type != TokenType.COLON && peek().type != TokenType.EOF) {
+                parseExpression(sourceLine)
+            } else {
+                val cIdx = addConstant(BasicValue.NumberVal(1.0))
+                emit(OpCode.PUSH_CONST, argInt = cIdx, sourceLine = sourceLine)
+            }
+            emit(OpCode.JOYSTICK, sourceLine = sourceLine, sourceLineNum = basicLineNum ?: -1)
         }
 
         private fun parseAssignment(sourceLine: Int, basicLineNum: Int?) {
@@ -729,6 +742,10 @@ class BasicCompiler {
                             consume(TokenType.RPAREN, "Expected ')' after array index")
                             emit(OpCode.LOAD_ARRAY, argString = name, sourceLine = sourceLine)
                         }
+                    } else if (name.equals("JOY", ignoreCase = true) || name.equals("FIRE", ignoreCase = true)) {
+                        val cIdx = addConstant(BasicValue.NumberVal(0.0))
+                        emit(OpCode.PUSH_CONST, argInt = cIdx, sourceLine = sourceLine)
+                        emit(OpCode.LOAD_VAR, argString = "__FN_${name.uppercase(Locale.ROOT)}", sourceLine = sourceLine)
                     } else {
                         emit(OpCode.LOAD_VAR, argString = name, sourceLine = sourceLine)
                     }
@@ -746,19 +763,19 @@ class BasicCompiler {
 
         private fun isBuiltinFunction(name: String): Boolean {
             return when (name.uppercase(Locale.ROOT)) {
-                "INT", "ABS", "SQR", "RND", "SIN", "COS", "TAN", "LEN", "STR$", "VAL", "CHR$", "ASC", "TAB", "SPRITEHIT" -> true
+                "INT", "ABS", "SQR", "RND", "SIN", "COS", "TAN", "LEN", "STR$", "VAL", "CHR$", "ASC", "TAB", "SPRITEHIT", "JOY", "FIRE" -> true
                 else -> false
             }
         }
 
         private fun parseBuiltinFunction(name: String, sourceLine: Int) {
             val fn = name.uppercase(Locale.ROOT)
-            if (fn == "RND") {
-                // RND can have 0 or 1 argument
+            if (fn == "RND" || fn == "JOY" || fn == "FIRE") {
+                // RND, JOY, FIRE can have 0 or 1 argument
                 if (peek().type != TokenType.RPAREN) {
                     parseExpression(sourceLine)
                 } else {
-                    val cIdx = addConstant(BasicValue.NumberVal(1.0))
+                    val cIdx = addConstant(BasicValue.NumberVal(if (fn == "RND") 1.0 else 0.0))
                     emit(OpCode.PUSH_CONST, argInt = cIdx, sourceLine = sourceLine)
                 }
             } else if (fn == "SPRITEHIT") {

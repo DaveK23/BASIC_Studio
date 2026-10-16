@@ -255,6 +255,14 @@ class BasicViewModel : ViewModel() {
         vm.provideInput(text)
     }
 
+    fun updateJoystick(direction: Int, axisX: Int, axisY: Int) {
+        vm.updateJoystick(direction, axisX, axisY)
+    }
+
+    fun updateFireButton(pressed: Boolean) {
+        vm.updateFireButton(pressed)
+    }
+
     fun updateCode(newCode: String) {
         _sourceCode.value = newCode
     }

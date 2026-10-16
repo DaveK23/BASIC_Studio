@@ -94,7 +94,7 @@ enum class OpCode {
 
     // 8-Bit Audio Synth
     SOUND,         // pop waveType, pop durationMs, pop freqHz
-    SFX,           // pop preset id (0..4)
+    SFX,           // pop preset id (0..12)
 
     // Hardware Sprites
     SPRITEDEF,     // pop data/pattern string, pop size, pop sprite id
@@ -102,6 +102,7 @@ enum class OpCode {
     SPRITEMOVE,    // pop dy, pop dx, pop sprite id
     SPRITESHOW,    // pop visible (0/1), pop sprite id
     SPRITEHIT,     // pop id2, pop id1, push 1/0 collision bool
+    JOYSTICK,      // pop enabled (0/1)
 
     // Array / List Operations
     LOAD_ARRAY,    // arg: array name index; pops index expression

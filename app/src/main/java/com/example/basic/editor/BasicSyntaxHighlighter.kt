@@ -66,7 +66,8 @@ object BasicSyntaxHighlighter {
     val GRAPHICS_SOUND_KEYWORDS = setOf(
         "SCREEN", "PSET", "LINE", "RECT", "CIRCLE",
         "SOUND", "SFX",
-        "SPRITEDEF", "SPRITE", "SPRITEMOVE", "SPRITESHOW"
+        "SPRITEDEF", "SPRITE", "SPRITEMOVE", "SPRITESHOW",
+        "JOYSTICK", "CONTROLLER"
     )
 
     val FUNCTION_KEYWORDS = setOf(
@@ -74,7 +75,8 @@ object BasicSyntaxHighlighter {
         "SIN", "COS", "TAN", "ATN", "LOG", "EXP",
         "LEN", "STR$", "VAL", "CHR$", "ASC",
         "TAB", "SPC", "LEFT$", "RIGHT$", "MID$",
-        "SPRITEHIT", "PEEK", "INP", "POS"
+        "SPRITEHIT", "PEEK", "INP", "POS",
+        "JOY", "FIRE"
     )
 
     val LOGICAL_OPERATORS = setOf(

@@ -48,6 +48,11 @@ class BasicDocumentationTest {
         val entrySfx = BasicDocHelper.resolveEntryAtCursor(sfxCode, 1)
         assertNotNull(entrySfx)
         assertEquals("cmd_sfx", entrySfx?.anchor)
+
+        val joyCode = "JOYSTICK 1"
+        val entryJoystick = BasicDocHelper.resolveEntryAtCursor(joyCode, 3)
+        assertNotNull(entryJoystick)
+        assertEquals("cmd_joystick", entryJoystick?.anchor)
     }
 
     @Test
@@ -65,6 +70,15 @@ class BasicDocumentationTest {
         val entryRnd = BasicDocHelper.resolveEntryAtCursor(code, 25)
         assertNotNull(entryRnd)
         assertEquals("fn_rnd", entryRnd?.anchor)
+
+        val ctrlCode = "X = JOY(1) : IF FIRE() = 1 THEN SFX 0"
+        val entryJoy = BasicDocHelper.resolveEntryAtCursor(ctrlCode, 5)
+        assertNotNull(entryJoy)
+        assertEquals("fn_joy", entryJoy?.anchor)
+
+        val entryFire = BasicDocHelper.resolveEntryAtCursor(ctrlCode, 18)
+        assertNotNull(entryFire)
+        assertEquals("fn_fire", entryFire?.anchor)
 
         val strCode = "T$ = STR$(COUNT) + CHR$(65)"
         val entryStr = BasicDocHelper.resolveEntryAtCursor(strCode, 6)

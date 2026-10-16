@@ -107,4 +107,81 @@ class RetroGraphicsSoundSpritesTest {
         assertTrue(names.contains("Pixel Diamond"))
         assertTrue(names.contains("Cassette Tape"))
     }
+
+    @Test
+    fun testAllThirteenSfxPresetsConfigured() {
+        assertEquals(13, com.example.basic.audio.RetroSoundSynth.PRESETS.size)
+        val ids = com.example.basic.audio.RetroSoundSynth.PRESETS.map { it.id }
+        for (i in 0..12) {
+            assertTrue("Preset $i must be registered", ids.contains(i))
+        }
+    }
+
+    @Test
+    fun testVmExecutesExpandedSfxPresets() = runBlocking {
+        val sfxPlayed = mutableListOf<Int>()
+        val vm = BasicVirtualMachine(
+            onSfx = { sfxPlayed.add(it) }
+        )
+        val code = """
+            10 SFX 0
+            20 SFX 5
+            30 SFX 7
+            40 SFX 9
+            50 SFX 12
+        """.trimIndent()
+        val program = compiler.compile(code)
+        vm.loadProgram(program)
+        vm.execute(debug = false)
+
+        assertEquals(listOf(0, 5, 7, 9, 12), sfxPlayed)
+    }
+
+    @Test
+    fun testCompilerGeneratesJoystickOpCodeAndFunctions() {
+        val code = """
+            10 SCREEN 1
+            20 JOYSTICK 1
+            30 D = JOY()
+            40 X = JOY(1)
+            50 Y = JOY(2)
+            60 F = FIRE()
+            70 JOYSTICK 0
+        """.trimIndent()
+        val program = compiler.compile(code)
+        val ops = program.instructions.map { it.op }
+        assertTrue(ops.contains(OpCode.JOYSTICK))
+    }
+
+    @Test
+    fun testVmExecutesJoystickAndFireFunctions() = runBlocking {
+        var lastGState: com.example.basic.graphics.RetroGraphicsState? = null
+        val vm = BasicVirtualMachine(
+            onGraphicsStateChanged = { lastGState = it }
+        )
+        val code = """
+            10 SCREEN 1
+            20 JOYSTICK 1
+            30 D = JOY()
+            40 X = JOY(1)
+            50 Y = JOY(2)
+            60 F = FIRE()
+        """.trimIndent()
+        val program = compiler.compile(code)
+        vm.loadProgram(program)
+
+        // Set joystick state in VM before executing
+        vm.updateJoystick(direction = 3, axisX = 1, axisY = 0)
+        vm.updateFireButton(pressed = true)
+
+        vm.execute(debug = false)
+
+        assertNotNull(lastGState)
+        assertEquals(true, lastGState?.showJoystick)
+        assertEquals(3.0, vm.variables["D"]?.asNumber() ?: 0.0, 0.001)
+        assertEquals(1.0, vm.variables["X"]?.asNumber() ?: 0.0, 0.001)
+        assertEquals(0.0, vm.variables["Y"]?.asNumber() ?: 0.0, 0.001)
+        assertEquals(1.0, vm.variables["F"]?.asNumber() ?: 0.0, 0.001)
+    }
 }
+

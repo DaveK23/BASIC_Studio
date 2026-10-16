@@ -72,6 +72,8 @@ data class RetroGraphicsState(
     val pixels: IntArray = IntArray(320 * 200) { 0 },
     // 16 hardware sprite slots (0..15)
     val sprites: Map<Int, Sprite> = emptyMap(),
+    // On-screen 8-way joystick and fire button overlay
+    val showJoystick: Boolean = false,
     // Monotonically increasing revision to trigger recomposition when pixels update
     val revision: Long = 0L
 ) {
@@ -79,12 +81,14 @@ data class RetroGraphicsState(
         if (this === other) return true
         if (other !is RetroGraphicsState) return false
         return mode == other.mode &&
+                showJoystick == other.showJoystick &&
                 revision == other.revision &&
                 sprites == other.sprites
     }
 
     override fun hashCode(): Int {
         var result = mode
+        result = 31 * result + showJoystick.hashCode()
         result = 31 * result + revision.hashCode()
         result = 31 * result + sprites.hashCode()
         return result

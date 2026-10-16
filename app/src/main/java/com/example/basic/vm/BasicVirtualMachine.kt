@@ -165,6 +165,16 @@ data class CallFrame(
 )
 
 /**
+ * Real-time state of the on-screen 8-way joystick and fire button.
+ */
+data class JoystickState(
+    val direction: Int = 0, // 0=Center, 1=Up, 2=Up-Right, 3=Right, 4=Down-Right, 5=Down, 6=Down-Left, 7=Left, 8=Up-Left
+    val axisX: Int = 0,     // -1 (Left), 0 (Center), 1 (Right)
+    val axisY: Int = 0,     // -1 (Up), 0 (Center), 1 (Down)
+    val fire: Boolean = false // true when fire button is held down
+)
+
+/**
  * Virtual Machine that executes BASIC Bytecode with real-time debugging,
  * step execution, breakpoints, variable inspection, and terminal I/O.
  */
@@ -198,6 +208,18 @@ class BasicVirtualMachine(
     var graphicsState = com.example.basic.graphics.RetroGraphicsState()
         private set
 
+    // Controller (8-way joystick and fire button) State
+    var joystickState = JoystickState()
+        private set
+
+    fun updateJoystick(direction: Int, axisX: Int, axisY: Int) {
+        joystickState = joystickState.copy(direction = direction, axisX = axisX, axisY = axisY)
+    }
+
+    fun updateFireButton(pressed: Boolean) {
+        joystickState = joystickState.copy(fire = pressed)
+    }
+
     // Debugging controls
     val breakpoints = mutableSetOf<Int>() // Line numbers or IP
     var isDebugMode = false
@@ -230,6 +252,7 @@ class BasicVirtualMachine(
         pendingInputDeferred = null
         state = VmState.IDLE
         graphicsState = com.example.basic.graphics.RetroGraphicsState()
+        joystickState = JoystickState()
         onGraphicsStateChanged(graphicsState)
         pendingInputVar = null
         currentTextColor = 0
@@ -863,6 +886,11 @@ class BasicVirtualMachine(
                     val hits = if (s1 != null && s2 != null) s1.hits(s2) else false
                     stack.addLast(BasicValue.BooleanVal(hits))
                 }
+                OpCode.JOYSTICK -> {
+                    val enabled = popValue().asNumber().toInt() != 0
+                    graphicsState = graphicsState.copy(showJoystick = enabled, revision = graphicsState.revision + 1)
+                    onGraphicsStateChanged(graphicsState)
+                }
                 OpCode.BEEP -> {
                     onBeep()
                 }
@@ -926,6 +954,18 @@ class BasicVirtualMachine(
             "VAL" -> BasicValue.NumberVal(str.toDoubleOrNull() ?: 0.0)
             "CHR$" -> BasicValue.StringVal(num.toInt().toChar().toString())
             "ASC" -> BasicValue.NumberVal(if (str.isNotEmpty()) str[0].code.toDouble() else 0.0)
+            "JOY" -> {
+                val mode = num.toInt()
+                val joyVal = when (mode) {
+                    1 -> joystickState.axisX.toDouble()
+                    2 -> joystickState.axisY.toDouble()
+                    else -> joystickState.direction.toDouble()
+                }
+                BasicValue.NumberVal(joyVal)
+            }
+            "FIRE" -> {
+                BasicValue.NumberVal(if (joystickState.fire) 1.0 else 0.0)
+            }
             else -> BasicValue.NumberVal(0.0)
         }
         stack.addLast(result)

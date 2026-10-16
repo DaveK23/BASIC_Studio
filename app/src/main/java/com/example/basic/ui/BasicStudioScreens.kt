@@ -859,6 +859,7 @@ fun EditorScreen(
                 "GOTO", "GOSUB", "RETURN", "DIM", "CLS", "COLOR",
                 "SCREEN", "PSET", "LINE", "RECT", "CIRCLE",
                 "SOUND", "SFX", "SPRITEDEF", "SPRITE", "SPRITEMOVE",
+                "JOYSTICK", "JOY", "FIRE",
                 "RND", "INT", "SIN", "COS", "SLEEP", "END"
             )
             helpers.forEach { keyword ->
@@ -1073,15 +1074,28 @@ fun TerminalScreen(
 
         val graphicsState by viewModel.graphicsState.collectAsState()
 
-        // If SCREEN mode > 0, show Retro 320x200 Graphics Canvas with Sprites
+        // If SCREEN mode > 0, show Retro 320x200 Graphics Canvas with Sprites & Optional Joystick
         if (graphicsState.mode > 0) {
-            com.example.basic.graphics.RetroGraphicsCanvas(
-                graphicsState = graphicsState,
+            Box(
                 modifier = Modifier
-                    .weight(1.2f)
+                    .weight(1.3f)
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 6.dp)
-            )
+            ) {
+                com.example.basic.graphics.RetroGraphicsCanvas(
+                    graphicsState = graphicsState,
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                // 8-Way Virtual Joystick and Fire Button overlay on bitmap display (SCREEN 1)
+                if (graphicsState.showJoystick) {
+                    com.example.basic.graphics.RetroControllerOverlay(
+                        onJoystickChange = { dir, x, y -> viewModel.updateJoystick(dir, x, y) },
+                        onFireChange = { pressed -> viewModel.updateFireButton(pressed) },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
         }
 
         // Terminal output screen

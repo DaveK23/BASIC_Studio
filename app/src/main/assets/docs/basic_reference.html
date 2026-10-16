@@ -568,6 +568,7 @@
         <a href="#cmd_spritemove" class="toc-chip graphics">SPRITEMOVE</a>
         <a href="#cmd_spriteshow" class="toc-chip graphics">SPRITESHOW</a>
         <a href="#fn_spritehit" class="toc-chip graphics">SPRITEHIT()</a>
+        <a href="#cmd_joystick" class="toc-chip graphics">JOYSTICK</a>
       </div>
 
       <div class="toc-section-title">Sound &amp; SFX Synthesizer</div>
@@ -591,6 +592,8 @@
         <a href="#fn_chr" class="toc-chip function">CHR$()</a>
         <a href="#fn_asc" class="toc-chip function">ASC()</a>
         <a href="#fn_tab" class="toc-chip function">TAB()</a>
+        <a href="#fn_joy" class="toc-chip function">JOY()</a>
+        <a href="#fn_fire" class="toc-chip function">FIRE()</a>
       </div>
 
       <div class="toc-section-title">Operators &amp; Logic</div>
@@ -1173,6 +1176,25 @@
       <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
     </div>
 
+    <!-- JOYSTICK -->
+    <div id="cmd_joystick" class="doc-entry" data-keywords="joystick controller dpad overlay touch buttons game gamepad fire screen 1">
+      <div class="doc-header">
+        <div class="doc-title">JOYSTICK [status]</div>
+        <span class="doc-category-badge badge-graphics">Controller</span>
+      </div>
+      <div class="syntax-box">
+        <b>JOYSTICK</b> [&lt;status: 0=hide, 1=show&gt;]
+      </div>
+      <div class="doc-desc">
+        Toggles the on-screen 8-way directional virtual joystick and tactile arcade FIRE button overlay on the bitmap display (<code>SCREEN 1</code>). Passing <code>1</code> (or omitting the argument) displays the touch controller; passing <code>0</code> hides it.
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">SCREEN</span> <span class="code-num">1</span>
+<span class="code-num">20</span> <span class="code-kw">JOYSTICK</span> <span class="code-num">1</span>  <span class="code-comment">' Display 8-way joystick and FIRE button</span>
+<span class="code-num">30</span> <span class="code-kw">PRINT</span> <span class="code-str">"TOUCH CONTROLS ACTIVE"</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
     <!-- ============================================================ -->
     <!-- SECTION: SOUND & SFX SYNTHESIZER -->
     <!-- ============================================================ -->
@@ -1210,30 +1232,44 @@
     </div>
 
     <!-- SFX -->
-    <div id="cmd_sfx" class="doc-entry" data-keywords="sfx sound effect arcade laser jump explosion coin powerup preset">
+    <div id="cmd_sfx" class="doc-entry" data-keywords="sfx sound effect arcade laser jump explosion coin powerup hurt damage gameover defeat victory fanfare blip click warp teleport alarm siren bounce spring zap electric preset">
       <div class="doc-header">
         <div class="doc-title">SFX preset_id</div>
         <span class="doc-category-badge badge-audio">Audio</span>
       </div>
       <div class="syntax-box">
-        <b>SFX</b> &lt;preset_id (0..4)&gt;
+        <b>SFX</b> &lt;preset_id (0..12)&gt;
       </div>
       <div class="doc-desc">
-        Triggers instant built-in arcade sound effect presets engineered with frequency modulation envelopes:
+        Triggers instant built-in arcade sound effect presets engineered with real-time waveform envelopes, frequency modulation, and noise generation:
       </div>
       <table class="spec-table">
-        <tr><th>Preset ID</th><th>Effect Name</th><th>Description</th></tr>
-        <tr><td><code>0</code></td><td>Laser Blaster</td><td>Rapid downwards pitch chirp (1200 Hz down to 200 Hz).</td></tr>
-        <tr><td><code>1</code></td><td>Jump</td><td>Smooth upwards pitch sweep (180 Hz up to 600 Hz).</td></tr>
-        <tr><td><code>2</code></td><td>Explosion</td><td>Heavy white noise burst with low-frequency rumble.</td></tr>
-        <tr><td><code>3</code></td><td>Coin / Pickup</td><td>Two-tone bright major interval chime (987 Hz &rarr; 1318 Hz).</td></tr>
-        <tr><td><code>4</code></td><td>Power-up</td><td>Multi-step fanfare pitch glide.</td></tr>
+        <tr><th>Preset ID</th><th>Effect Name</th><th>Description</th><th>Typical Use Case</th></tr>
+        <tr><td><code>0</code></td><td>Laser Blaster</td><td>Rapid downwards pitch chirp (1200 Hz down to 300 Hz).</td><td>Shooting, laser guns, projectiles</td></tr>
+        <tr><td><code>1</code></td><td>Platform Jump</td><td>Smooth upwards triangle wave sweep (200 Hz up to 800 Hz).</td><td>Player jumping, leaping, hopping</td></tr>
+        <tr><td><code>2</code></td><td>Explosion</td><td>Heavy white noise burst with low-frequency rumble.</td><td>Bomb blast, enemy destroyed, ship crash</td></tr>
+        <tr><td><code>3</code></td><td>Coin / Pickup</td><td>Two-tone bright major interval chime (987 Hz &rarr; 1318 Hz).</td><td>Collecting coins, rings, gems, bonus points</td></tr>
+        <tr><td><code>4</code></td><td>Power-up</td><td>Four-step ascending major arpeggio fanfare (C4, E4, G4, C5).</td><td>1-Up, mushroom, shield activated</td></tr>
+        <tr><td><code>5</code></td><td>Hurt / Damage</td><td>Crunchy descending pitch drop (380 Hz &rarr; 60 Hz) blended with impact noise.</td><td>Player taking hit, hazard collision, health loss</td></tr>
+        <tr><td><code>6</code></td><td>Game Over</td><td>Sad descending minor sequence (D4, Bb3, G3, Eb3) with slow fade-out.</td><td>Life lost, game over, mission failed</td></tr>
+        <tr><td><code>7</code></td><td>Victory / Fanfare</td><td>Triumphant arcade victory jingle (G4, C5, E5, G5, held high C6).</td><td>Stage cleared, boss defeated, high score</td></tr>
+        <tr><td><code>8</code></td><td>Blip / Select</td><td>Snappy high-frequency micro-chirp (1600 Hz, 35 ms).</td><td>Menu selection, cursor move, text typing blips</td></tr>
+        <tr><td><code>9</code></td><td>Warp / Teleport</td><td>Sci-fi frequency-modulated vibrato sweep (200 Hz to 1100 Hz with 80 Hz LFO).</td><td>Teleporter pad, portal jump, wormhole entry</td></tr>
+        <tr><td><code>10</code></td><td>Alarm / Siren</td><td>Piercing alternating two-tone emergency klaxon (880 Hz / 659 Hz).</td><td>Time running out, boss alert, critical warning</td></tr>
+        <tr><td><code>11</code></td><td>Bounce / Spring</td><td>Resonant upward spring boing (150 Hz to 550 Hz with warble envelope).</td><td>Trampoline, bumper, spring pad, ricochet</td></tr>
+        <tr><td><code>12</code></td><td>Zap / Electric Shock</td><td>Jagged buzzing high-frequency sawtooth electric spark with jitter.</td><td>Electric fence, forcefield shock, lightning spark</td></tr>
       </table>
       <div class="example-header">Example:</div>
-      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">PRINT</span> <span class="code-str">"FIRE WEAPON!"</span>
-<span class="code-num">20</span> <span class="code-kw">SFX</span> <span class="code-num">0</span>  <span class="code-comment">' Laser</span>
-<span class="code-num">30</span> <span class="code-kw">SLEEP</span> <span class="code-num">300</span>
-<span class="code-num">40</span> <span class="code-kw">SFX</span> <span class="code-num">2</span>  <span class="code-comment">' Target destroyed!</span></pre>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">PRINT</span> <span class="code-str">"HERO ENTERS WARP PORTAL..."</span>
+<span class="code-num">20</span> <span class="code-kw">SFX</span> <span class="code-num">9</span>   <span class="code-comment">' Warp / Teleport</span>
+<span class="code-num">30</span> <span class="code-kw">SLEEP</span> <span class="code-num">400</span>
+<span class="code-num">40</span> <span class="code-kw">PRINT</span> <span class="code-str">"FIRE WEAPONS!"</span>
+<span class="code-num">50</span> <span class="code-kw">SFX</span> <span class="code-num">0</span>   <span class="code-comment">' Laser</span>
+<span class="code-num">60</span> <span class="code-kw">SLEEP</span> <span class="code-num">250</span>
+<span class="code-num">70</span> <span class="code-kw">SFX</span> <span class="code-num">2</span>   <span class="code-comment">' Target destroyed (Explosion)</span>
+<span class="code-num">80</span> <span class="code-kw">SLEEP</span> <span class="code-num">400</span>
+<span class="code-num">90</span> <span class="code-kw">PRINT</span> <span class="code-str">"STAGE CLEAR!"</span>
+<span class="code-num">100</span> <span class="code-kw">SFX</span> <span class="code-num">7</span>  <span class="code-comment">' Victory Fanfare</span></pre>
       <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
     </div>
 
@@ -1391,6 +1427,51 @@
       <div class="doc-desc">
         Used exclusively inside a <code>PRINT</code> statement to move the print position to column <code>col</code>.
       </div>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- JOY -->
+    <div id="fn_joy" class="doc-entry" data-keywords="joy joystick dpad direction axis stick pad controller">
+      <div class="doc-header">
+        <div class="doc-title">JOY([axis])</div>
+        <span class="doc-category-badge badge-function">Function</span>
+      </div>
+      <div class="syntax-box">
+        direction = <b>JOY</b>([&lt;axis&gt;])
+      </div>
+      <div class="doc-desc">
+        Reads the current state of the on-screen 8-way directional joystick overlay.
+      </div>
+      <table class="spec-table">
+        <tr><th>Syntax / Argument</th><th>Return Value Description</th></tr>
+        <tr><td><code>JOY()</code> or <code>JOY(0)</code></td><td>8-way Direction Code: <code>0</code>=Center/Neutral, <code>1</code>=Up, <code>2</code>=Up-Right, <code>3</code>=Right, <code>4</code>=Down-Right, <code>5</code>=Down, <code>6</code>=Down-Left, <code>7</code>=Left, <code>8</code>=Up-Left.</td></tr>
+        <tr><td><code>JOY(1)</code></td><td>Horizontal X-Axis: <code>-1</code> (Left), <code>0</code> (Center), <code>1</code> (Right).</td></tr>
+        <tr><td><code>JOY(2)</code></td><td>Vertical Y-Axis: <code>-1</code> (Up), <code>0</code> (Center), <code>1</code> (Down).</td></tr>
+      </table>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">SCREEN</span> <span class="code-num">1</span> : <span class="code-kw">JOYSTICK</span> <span class="code-num">1</span>
+<span class="code-num">20</span> DX = <span class="code-fn">JOY</span>(<span class="code-num">1</span>) * <span class="code-num">3</span>  <span class="code-comment">' Read horizontal joystick axis</span>
+<span class="code-num">30</span> DY = <span class="code-fn">JOY</span>(<span class="code-num">2</span>) * <span class="code-num">3</span>  <span class="code-comment">' Read vertical joystick axis</span>
+<span class="code-num">40</span> <span class="code-kw">SPRITEMOVE</span> <span class="code-num">0</span>, DX, DY</pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- FIRE -->
+    <div id="fn_fire" class="doc-entry" data-keywords="fire button trigger shoot action attack controller">
+      <div class="doc-header">
+        <div class="doc-title">FIRE()</div>
+        <span class="doc-category-badge badge-function">Function</span>
+      </div>
+      <div class="syntax-box">
+        state = <b>FIRE</b>()
+      </div>
+      <div class="doc-desc">
+        Returns <code>1</code> if the on-screen arcade FIRE button is currently held down; returns <code>0</code> when released.
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">IF</span> <span class="code-fn">FIRE</span>() = <span class="code-num">1</span> <span class="code-kw">THEN</span>
+<span class="code-num">20</span>   <span class="code-kw">SFX</span> <span class="code-num">0</span>  <span class="code-comment">' Laser blast!</span>
+<span class="code-num">30</span> <span class="code-kw">END</span> <span class="code-kw">IF</span></pre>
       <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
     </div>
 

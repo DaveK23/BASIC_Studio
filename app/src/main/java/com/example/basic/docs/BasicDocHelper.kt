@@ -51,7 +51,7 @@ object BasicDocHelper {
 
         // Audio Commands
         DocEntry("cmd_sound", "SOUND", DocCategory.AUDIO, "Synthesizes custom audio frequencies with waveform selection."),
-        DocEntry("cmd_sfx", "SFX", DocCategory.AUDIO, "Triggers arcade sound effect presets (Laser, Jump, Explosion, etc.)."),
+        DocEntry("cmd_sfx", "SFX", DocCategory.AUDIO, "Triggers 13 arcade SFX presets: Laser (0), Jump (1), Explosion (2), Coin (3), Powerup (4), Hurt (5), GameOver (6), Victory (7), Blip (8), Warp (9), Alarm (10), Bounce (11), Zap (12)."),
 
         // Sprites
         DocEntry("cmd_spritedef", "SPRITEDEF", DocCategory.GRAPHICS, "Defines a pixel sprite pattern matrix (8x8 or 16x16)."),
@@ -59,8 +59,11 @@ object BasicDocHelper {
         DocEntry("cmd_spritemove", "SPRITEMOVE", DocCategory.GRAPHICS, "Translates a sprite position by relative coordinate offsets (dX, dY)."),
         DocEntry("cmd_spriteshow", "SPRITESHOW", DocCategory.GRAPHICS, "Toggles sprite visibility state on or off."),
         DocEntry("fn_spritehit", "SPRITEHIT", DocCategory.GRAPHICS, "Tests bounding-box collision between two active sprites."),
+        DocEntry("cmd_joystick", "JOYSTICK", DocCategory.GRAPHICS, "Overlays on-screen 8-way joystick and fire button on bitmap display (SCREEN 1)."),
 
         // Built-in Functions
+        DocEntry("fn_joy", "JOY", DocCategory.FUNCTION, "Returns current 8-way joystick direction (0-8) or axis (1: X-axis, 2: Y-axis)."),
+        DocEntry("fn_fire", "FIRE", DocCategory.FUNCTION, "Returns 1 if on-screen fire button is held down, 0 otherwise."),
         DocEntry("fn_int", "INT", DocCategory.FUNCTION, "Truncates/floors a floating-point number to the nearest integer."),
         DocEntry("fn_abs", "ABS", DocCategory.FUNCTION, "Computes the absolute (non-negative) magnitude of a numeric value."),
         DocEntry("fn_sqr", "SQR", DocCategory.FUNCTION, "Calculates the positive mathematical square root of a number."),
@@ -106,6 +109,7 @@ object BasicDocHelper {
         get("REM")?.let { put("'", it) }
         get("STR$")?.let { put("STR", it) }
         get("CHR$")?.let { put("CHR", it) }
+        get("JOYSTICK")?.let { put("CONTROLLER", it) }
     }
 
     /**
