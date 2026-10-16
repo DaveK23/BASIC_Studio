@@ -1746,6 +1746,25 @@ fun SamplesDialog(
                             Text(sample.title, color = TerminalCyan, fontFamily = monoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(sample.description, color = Color(0xFF94A3B8), fontSize = 12.sp)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color(0xFF090D16),
+                                border = BorderStroke(1.dp, Color(0xFF334155)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                val previewCode = remember(sample.code) {
+                                    val previewText = sample.code.lines().filter { it.isNotBlank() }.take(3).joinToString("\n")
+                                    BasicSyntaxHighlighter.highlight(previewText, monoFont)
+                                }
+                                Text(
+                                    text = previewCode,
+                                    fontFamily = monoFont,
+                                    fontSize = 11.sp,
+                                    lineHeight = 16.sp,
+                                    modifier = Modifier.padding(8.dp)
+                                )
+                            }
                         }
                     }
                 }
