@@ -183,5 +183,98 @@ class RetroGraphicsSoundSpritesTest {
         assertEquals(0.0, vm.variables["Y"]?.asNumber() ?: 0.0, 0.001)
         assertEquals(1.0, vm.variables["F"]?.asNumber() ?: 0.0, 0.001)
     }
+
+    @Test
+    fun testSpriteShapesDecodedCorrectlyForVariousFormats() = runBlocking {
+        var lastGState: com.example.basic.graphics.RetroGraphicsState? = null
+        val vm = BasicVirtualMachine(
+            onGraphicsStateChanged = { lastGState = it }
+        )
+        val code = """
+            10 SCREEN 1
+            20 REM Pattern 0: 64-char binary string
+            30 SPRITEDEF 0, 8, "0010010001011010011111101101101111111111010000101010010101000010"
+            40 REM Pattern 1: ASCII visual pattern with # and .
+            50 SPRITEDEF 1, 8, "..####....####..##....####....####....####....##"
+            60 REM Pattern 2: Hexadecimal string (16 hex digits = 64 bits)
+            70 SPRITEDEF 2, 8, "3C7EFFFFDBFF24A5"
+            80 REM Pattern 3: Comma-separated decimal row bytes
+            90 SPRITEDEF 3, 8, "60, 126, 255, 219, 255, 36, 165, 0"
+            100 REM Spawn sprites using the defined patterns
+            110 SPRITE 0, 10, 10, 0, 1
+            120 SPRITE 1, 30, 10, 1, 2
+            130 SPRITE 2, 50, 10, 2, 3
+            140 SPRITE 3, 70, 10, 3, 4
+            150 REM Sprite 4 reuses pattern 0 with different color and position
+            160 SPRITE 4, 90, 10, 0, 5
+        """.trimIndent()
+        val program = compiler.compile(code)
+        vm.loadProgram(program)
+        vm.execute(debug = false)
+
+        assertNotNull(lastGState)
+        assertEquals(5, lastGState?.sprites?.size)
+
+        // Verify Sprite 0 (64-char binary)
+        val s0 = lastGState?.sprites?.get(0)
+        assertNotNull(s0)
+        assertEquals(64, s0?.pattern?.size)
+        // Row 0 is "00100100" -> bits 2 and 5 are true
+        assertEquals(false, s0?.pattern?.get(0))
+        assertEquals(false, s0?.pattern?.get(1))
+        assertEquals(true, s0?.pattern?.get(2))
+        assertEquals(false, s0?.pattern?.get(3))
+        assertEquals(false, s0?.pattern?.get(4))
+        assertEquals(true, s0?.pattern?.get(5))
+        assertEquals(false, s0?.pattern?.get(6))
+        assertEquals(false, s0?.pattern?.get(7))
+
+        // Verify Sprite 1 (ASCII with # and .)
+        val s1 = lastGState?.sprites?.get(1)
+        assertNotNull(s1)
+        assertEquals(64, s1?.pattern?.size)
+        // "..####.." -> bits 0,1 are false, 2,3,4,5 are true, 6,7 are false
+        assertEquals(false, s1?.pattern?.get(0))
+        assertEquals(false, s1?.pattern?.get(1))
+        assertEquals(true, s1?.pattern?.get(2))
+        assertEquals(true, s1?.pattern?.get(3))
+        assertEquals(true, s1?.pattern?.get(4))
+        assertEquals(true, s1?.pattern?.get(5))
+        assertEquals(false, s1?.pattern?.get(6))
+        assertEquals(false, s1?.pattern?.get(7))
+
+        // Verify Sprite 2 (Hex: 3C = 00111100, 7E = 01111110)
+        val s2 = lastGState?.sprites?.get(2)
+        assertNotNull(s2)
+        assertEquals(64, s2?.pattern?.size)
+        // 0x3C = 00111100
+        assertEquals(false, s2?.pattern?.get(0))
+        assertEquals(false, s2?.pattern?.get(1))
+        assertEquals(true, s2?.pattern?.get(2))
+        assertEquals(true, s2?.pattern?.get(3))
+        assertEquals(true, s2?.pattern?.get(4))
+        assertEquals(true, s2?.pattern?.get(5))
+        assertEquals(false, s2?.pattern?.get(6))
+        assertEquals(false, s2?.pattern?.get(7))
+
+        // Verify Sprite 3 (Comma bytes: 60 = 0x3C = 00111100)
+        val s3 = lastGState?.sprites?.get(3)
+        assertNotNull(s3)
+        assertEquals(64, s3?.pattern?.size)
+        assertEquals(false, s3?.pattern?.get(0))
+        assertEquals(false, s3?.pattern?.get(1))
+        assertEquals(true, s3?.pattern?.get(2))
+        assertEquals(true, s3?.pattern?.get(3))
+        assertEquals(true, s3?.pattern?.get(4))
+        assertEquals(true, s3?.pattern?.get(5))
+        assertEquals(false, s3?.pattern?.get(6))
+        assertEquals(false, s3?.pattern?.get(7))
+
+        // Verify Sprite 4 correctly reused Pattern 0
+        val s4 = lastGState?.sprites?.get(4)
+        assertNotNull(s4)
+        assertEquals(s0?.pattern, s4?.pattern)
+        assertEquals(5, s4?.colorIndex)
+    }
 }
 

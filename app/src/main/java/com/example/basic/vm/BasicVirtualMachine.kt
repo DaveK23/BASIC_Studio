@@ -175,6 +175,15 @@ data class JoystickState(
 )
 
 /**
+ * Shape pattern definition for retro pixel sprites (8x8 or 16x16).
+ */
+data class SpriteDefinition(
+    val width: Int = 8,
+    val height: Int = 8,
+    val pattern: List<Boolean> = List(64) { false }
+)
+
+/**
  * Virtual Machine that executes BASIC Bytecode with real-time debugging,
  * step execution, breakpoints, variable inspection, and terminal I/O.
  */
@@ -207,6 +216,9 @@ class BasicVirtualMachine(
     // Retro Graphics & Sprites State
     var graphicsState = com.example.basic.graphics.RetroGraphicsState()
         private set
+
+    // Sprite pattern definition table (supports sharing pattern definitions across multiple sprites)
+    private val spriteDefinitions = mutableMapOf<Int, SpriteDefinition>()
 
     // Controller (8-way joystick and fire button) State
     var joystickState = JoystickState()
@@ -253,6 +265,7 @@ class BasicVirtualMachine(
         state = VmState.IDLE
         graphicsState = com.example.basic.graphics.RetroGraphicsState()
         joystickState = JoystickState()
+        spriteDefinitions.clear()
         onGraphicsStateChanged(graphicsState)
         pendingInputVar = null
         currentTextColor = 0
@@ -806,28 +819,9 @@ class BasicVirtualMachine(
                     val size = popValue().asNumber().toInt().let { if (it == 16) 16 else 8 }
                     val id = popValue().asNumber().toInt().coerceIn(0, 15)
 
-                    // Convert pattern string (hex or binary 0/1) to List<Boolean>
-                    val requiredBits = size * size
-                    val bits = mutableListOf<Boolean>()
-                    val clean = patRaw.replace(" ", "").trim()
-                    if (clean.all { it == '0' || it == '1' } && clean.length >= requiredBits) {
-                        for (i in 0 until requiredBits) {
-                            bits.add(clean[i] == '1')
-                        }
-                    } else {
-                        // Parse as hex string e.g. "AA55AA55..."
-                        for (ch in clean) {
-                            val hexVal = ch.digitToIntOrNull(16) ?: 0
-                            for (b in 3 downTo 0) {
-                                if (bits.size < requiredBits) {
-                                    bits.add(((hexVal shr b) and 1) == 1)
-                                }
-                            }
-                        }
-                        while (bits.size < requiredBits) {
-                            bits.add(false)
-                        }
-                    }
+                    val bits = parseSpritePattern(patRaw, size)
+                    val def = SpriteDefinition(width = size, height = size, pattern = bits)
+                    spriteDefinitions[id] = def
 
                     val updatedSprites = graphicsState.sprites.toMutableMap()
                     val currentSprite = updatedSprites[id] ?: com.example.basic.graphics.Sprite(id = id, width = size, height = size)
@@ -844,10 +838,20 @@ class BasicVirtualMachine(
 
                     val updatedSprites = graphicsState.sprites.toMutableMap()
                     val currentSprite = updatedSprites[id] ?: com.example.basic.graphics.Sprite(id = id)
+
+                    // Apply pattern definition from spriteDefinitions if patArg is valid
+                    val patternDef = if (patArg >= 0) spriteDefinitions[patArg] else null
+                    val finalPattern = patternDef?.pattern ?: currentSprite.pattern
+                    val finalWidth = patternDef?.width ?: currentSprite.width
+                    val finalHeight = patternDef?.height ?: currentSprite.height
                     val finalColor = if (colorArg >= 0) colorArg % 16 else currentSprite.colorIndex
+
                     updatedSprites[id] = currentSprite.copy(
                         x = x,
                         y = y,
+                        width = finalWidth,
+                        height = finalHeight,
+                        pattern = finalPattern,
                         colorIndex = finalColor,
                         visible = true
                     )
@@ -1074,5 +1078,118 @@ class BasicVirtualMachine(
                 plotCirclePoints(xc, yc, x, y)
             }
         }
+    }
+
+    /**
+     * Parses a sprite pattern string into a flat bitmask (true = solid, false = transparent).
+     * Supports:
+     * 1. Comma-separated byte values (e.g. "60, 126, 255, 219, ...")
+     * 2. Multiline ASCII art (lines separated by '\n' or '/')
+     * 3. Hexadecimal strings (explicit 0x/&H prefix or 16/64 hex chars with A-F)
+     * 4. Single-row bitmask repeated across all rows (e.g. "11111111")
+     * 5. Character-per-pixel bitmask ('1', '#', '*', 'X', '@' = solid, '0', '.', '-' = transparent)
+     */
+    private fun parseSpritePattern(patRaw: String, size: Int): List<Boolean> {
+        val clean = patRaw.trim().trim('"', '\'')
+        val requiredBits = size * size
+
+        // Format 1: Comma-separated numeric byte values e.g. "60, 126, 255, 219, ..."
+        if (clean.contains(',')) {
+            val parts = clean.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+            val allNumbers = parts.isNotEmpty() && parts.all { part ->
+                part.toIntOrNull() != null ||
+                (part.startsWith("&H", ignoreCase = true) && part.substring(2).toIntOrNull(16) != null) ||
+                (part.startsWith("0x", ignoreCase = true) && part.substring(2).toIntOrNull(16) != null)
+            }
+            if (allNumbers) {
+                val bits = ArrayList<Boolean>(requiredBits)
+                for (part in parts) {
+                    val num = when {
+                        part.startsWith("&H", ignoreCase = true) || part.startsWith("0x", ignoreCase = true) ->
+                            part.substring(2).toIntOrNull(16) ?: 0
+                        else -> part.toIntOrNull() ?: 0
+                    }
+                    for (b in (size - 1) downTo 0) {
+                        if (bits.size < requiredBits) {
+                            bits.add(((num shr b) and 1) == 1)
+                        }
+                    }
+                }
+                while (bits.size < requiredBits) {
+                    bits.add(false)
+                }
+                return bits.take(requiredBits)
+            }
+        }
+
+        // Format 2: Multiline ASCII visual pattern (lines separated by \n or /)
+        if (clean.contains('\n') || clean.contains('/')) {
+            val delim = if (clean.contains('\n')) '\n' else '/'
+            val lines = clean.split(delim).map { it.trim() }.filter { it.isNotEmpty() }
+            val bits = ArrayList<Boolean>(requiredBits)
+            for (line in lines) {
+                val rowClean = line.replace(" ", "").replace("\t", "").replace("\r", "")
+                for (x in 0 until size) {
+                    if (x < rowClean.length) {
+                        val c = rowClean[x]
+                        bits.add(c == '1' || c == '#' || c == '*' || c == 'X' || c == 'x' || c == '@' || c == '+')
+                    } else {
+                        bits.add(false)
+                    }
+                }
+            }
+            while (bits.size < requiredBits) {
+                bits.add(false)
+            }
+            return bits.take(requiredBits)
+        }
+
+        val noSpaces = clean.replace(" ", "").replace("\t", "").replace("\r", "")
+
+        // Format 3: Explicit or detected Hexadecimal bitmask (starts with 0x/&H or has hex letters A-F with matching length)
+        val isExplicitHex = noSpaces.startsWith("0x", ignoreCase = true) || noSpaces.startsWith("&H", ignoreCase = true)
+        val hexBody = if (isExplicitHex) noSpaces.substring(2) else noSpaces
+        val hasHexLetter = hexBody.any { it in 'a'..'f' || it in 'A'..'F' }
+        val isAllHex = hexBody.isNotEmpty() && hexBody.all { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' }
+
+        if (isExplicitHex || (hasHexLetter && isAllHex && hexBody.length == requiredBits / 4)) {
+            val bits = ArrayList<Boolean>(requiredBits)
+            for (ch in hexBody) {
+                val hexVal = ch.digitToIntOrNull(16) ?: 0
+                for (b in 3 downTo 0) {
+                    if (bits.size < requiredBits) {
+                        bits.add(((hexVal shr b) and 1) == 1)
+                    }
+                }
+            }
+            while (bits.size < requiredBits) {
+                bits.add(false)
+            }
+            return bits.take(requiredBits)
+        }
+
+        // Format 4: Single-row pattern repeated for all rows (e.g. "11111111" for 8x8)
+        if (noSpaces.length == size && noSpaces.all { it in "01.#*Xx@+-_ " }) {
+            val bits = ArrayList<Boolean>(requiredBits)
+            for (y in 0 until size) {
+                for (x in 0 until size) {
+                    val c = noSpaces[x]
+                    bits.add(c == '1' || c == '#' || c == '*' || c == 'X' || c == 'x' || c == '@' || c == '+')
+                }
+            }
+            return bits
+        }
+
+        // Format 5: Standard character-per-pixel bitmask (1, #, *, X = solid; 0, ., - = transparent)
+        val bits = ArrayList<Boolean>(requiredBits)
+        for (c in noSpaces) {
+            if (bits.size < requiredBits) {
+                bits.add(c == '1' || c == '#' || c == '*' || c == 'X' || c == 'x' || c == '@' || c == '+')
+            }
+        }
+        while (bits.size < requiredBits) {
+            bits.add(false)
+        }
+        return bits.take(requiredBits)
     }
 }
