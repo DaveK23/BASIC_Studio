@@ -970,7 +970,12 @@ fun EditorScreen(
                                 text = "$lineNum",
                                 color = if (isCurrent) TerminalAmber else Color(0xFF64748B),
                                 fontSize = 11.sp,
-                                fontFamily = monoFont
+                                fontFamily = monoFont,
+                                style = TextStyle(
+                                    fontFamily = monoFont,
+                                    fontSize = 11.sp,
+                                    fontFeatureSettings = BasicSyntaxHighlighter.FONT_FEATURE_SETTINGS_NO_LIGATURES
+                                )
                             )
                         }
                     }
@@ -1002,6 +1007,7 @@ fun EditorScreen(
                             fontSize = 13.sp,
                             color = Color(0xFFE2E8F0),
                             lineHeight = lineHeight,
+                            fontFeatureSettings = BasicSyntaxHighlighter.FONT_FEATURE_SETTINGS_NO_LIGATURES,
                             platformStyle = PlatformTextStyle(includeFontPadding = false)
                         ),
                         cursorBrush = SolidColor(TerminalCyan),
@@ -1139,7 +1145,12 @@ fun TerminalScreen(
                 Text(
                     text = displayText,
                     fontFamily = monoFont,
-                    fontSize = 13.sp
+                    fontSize = 13.sp,
+                    style = TextStyle(
+                        fontFamily = monoFont,
+                        fontSize = 13.sp,
+                        fontFeatureSettings = BasicSyntaxHighlighter.FONT_FEATURE_SETTINGS_NO_LIGATURES
+                    )
                 )
             }
         }
@@ -1173,7 +1184,11 @@ fun TerminalScreen(
                         modifier = Modifier
                             .weight(1f)
                             .testTag("terminal_input_field"),
-                        textStyle = TextStyle(color = Color.White, fontFamily = monoFont),
+                        textStyle = TextStyle(
+                            color = Color.White,
+                            fontFamily = monoFont,
+                            fontFeatureSettings = BasicSyntaxHighlighter.FONT_FEATURE_SETTINGS_NO_LIGATURES
+                        ),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                         keyboardActions = KeyboardActions(onSend = {
                             if (inputText.isNotEmpty()) {

@@ -88,6 +88,10 @@ object BasicSyntaxHighlighter {
         "GOTO", "GOSUB", "THEN", "RESTORE"
     )
 
+    // OpenType feature settings to disable contextual alternates ('calt') and standard ligatures ('liga')
+    // ensuring multi-character symbols like '<=', '>=', '<>' are rendered as individual, distinct characters
+    const val FONT_FEATURE_SETTINGS_NO_LIGATURES = "'calt' 0, 'liga' 0"
+
     fun highlight(code: String, font: FontFamily = FontFamily.Monospace): AnnotatedString {
         return buildAnnotatedString {
             append(code)
@@ -106,7 +110,8 @@ object BasicSyntaxHighlighter {
                         SpanStyle(
                             color = COMMENT_COLOR,
                             fontStyle = FontStyle.Italic,
-                            fontWeight = FontWeight.Normal
+                            fontWeight = FontWeight.Normal,
+                            fontFeatureSettings = FONT_FEATURE_SETTINGS_NO_LIGATURES
                         ),
                         start, i
                     )
@@ -123,7 +128,8 @@ object BasicSyntaxHighlighter {
                     addStyle(
                         SpanStyle(
                             color = STRING_COLOR,
-                            fontWeight = FontWeight.Normal
+                            fontWeight = FontWeight.Normal,
+                            fontFeatureSettings = FONT_FEATURE_SETTINGS_NO_LIGATURES
                         ),
                         start, i
                     )
@@ -143,7 +149,14 @@ object BasicSyntaxHighlighter {
                         isJumpTarget -> LINE_LABEL_COLOR to FontWeight.Bold
                         else -> NUMBER_COLOR to FontWeight.Medium
                     }
-                    addStyle(SpanStyle(color = color, fontWeight = weight), start, i)
+                    addStyle(
+                        SpanStyle(
+                            color = color,
+                            fontWeight = weight,
+                            fontFeatureSettings = FONT_FEATURE_SETTINGS_NO_LIGATURES
+                        ),
+                        start, i
+                    )
                     lastKeyword = null
                     continue
                 }
@@ -162,39 +175,89 @@ object BasicSyntaxHighlighter {
                             SpanStyle(
                                 color = COMMENT_COLOR,
                                 fontStyle = FontStyle.Italic,
-                                fontWeight = FontWeight.Normal
+                                fontWeight = FontWeight.Normal,
+                                fontFeatureSettings = FONT_FEATURE_SETTINGS_NO_LIGATURES
                             ),
                             start, i
                         )
                         lastKeyword = null
                     } else when {
                         CONTROL_FLOW_KEYWORDS.contains(upper) -> {
-                            addStyle(SpanStyle(color = CONTROL_FLOW_COLOR, fontWeight = FontWeight.Bold), start, i)
+                            addStyle(
+                                SpanStyle(
+                                    color = CONTROL_FLOW_COLOR,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFeatureSettings = FONT_FEATURE_SETTINGS_NO_LIGATURES
+                                ),
+                                start, i
+                            )
                             lastKeyword = upper
                         }
                         COMMAND_KEYWORDS.contains(upper) -> {
-                            addStyle(SpanStyle(color = COMMAND_COLOR, fontWeight = FontWeight.Bold), start, i)
+                            addStyle(
+                                SpanStyle(
+                                    color = COMMAND_COLOR,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFeatureSettings = FONT_FEATURE_SETTINGS_NO_LIGATURES
+                                ),
+                                start, i
+                            )
                             lastKeyword = upper
                         }
                         GRAPHICS_SOUND_KEYWORDS.contains(upper) -> {
-                            addStyle(SpanStyle(color = GRAPHICS_SOUND_COLOR, fontWeight = FontWeight.Bold), start, i)
+                            addStyle(
+                                SpanStyle(
+                                    color = GRAPHICS_SOUND_COLOR,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFeatureSettings = FONT_FEATURE_SETTINGS_NO_LIGATURES
+                                ),
+                                start, i
+                            )
                             lastKeyword = upper
                         }
                         FUNCTION_KEYWORDS.contains(upper) -> {
-                            addStyle(SpanStyle(color = FUNCTION_COLOR, fontWeight = FontWeight.Bold), start, i)
+                            addStyle(
+                                SpanStyle(
+                                    color = FUNCTION_COLOR,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFeatureSettings = FONT_FEATURE_SETTINGS_NO_LIGATURES
+                                ),
+                                start, i
+                            )
                             lastKeyword = upper
                         }
                         LOGICAL_OPERATORS.contains(upper) -> {
-                            addStyle(SpanStyle(color = OPERATOR_COLOR, fontWeight = FontWeight.Bold), start, i)
+                            addStyle(
+                                SpanStyle(
+                                    color = OPERATOR_COLOR,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFeatureSettings = FONT_FEATURE_SETTINGS_NO_LIGATURES
+                                ),
+                                start, i
+                            )
                             lastKeyword = upper
                         }
                         upper == "TRUE" || upper == "FALSE" -> {
-                            addStyle(SpanStyle(color = FUNCTION_COLOR, fontWeight = FontWeight.Bold), start, i)
+                            addStyle(
+                                SpanStyle(
+                                    color = FUNCTION_COLOR,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFeatureSettings = FONT_FEATURE_SETTINGS_NO_LIGATURES
+                                ),
+                                start, i
+                            )
                             lastKeyword = upper
                         }
                         word.endsWith("$") -> {
                             // String variable
-                            addStyle(SpanStyle(color = STRING_VAR_COLOR, fontWeight = FontWeight.Medium), start, i)
+                            addStyle(
+                                SpanStyle(
+                                    color = STRING_VAR_COLOR,
+                                    fontWeight = FontWeight.Medium,
+                                    fontFeatureSettings = FONT_FEATURE_SETTINGS_NO_LIGATURES
+                                ),
+                                start, i
+                            )
                             lastKeyword = null
                         }
                         else -> {
@@ -208,7 +271,14 @@ object BasicSyntaxHighlighter {
                 // Operator & punctuation characters
                 if (c == '?') {
                     // Classic BASIC shortcut for PRINT
-                    addStyle(SpanStyle(color = COMMAND_COLOR, fontWeight = FontWeight.Bold), i, i + 1)
+                    addStyle(
+                        SpanStyle(
+                            color = COMMAND_COLOR,
+                            fontWeight = FontWeight.Bold,
+                            fontFeatureSettings = FONT_FEATURE_SETTINGS_NO_LIGATURES
+                        ),
+                        i, i + 1
+                    )
                     lastKeyword = "PRINT"
                     i++
                     continue
@@ -216,7 +286,14 @@ object BasicSyntaxHighlighter {
 
                 if (c == ':') {
                     // Statement separator
-                    addStyle(SpanStyle(color = Color(0xFF818CF8), fontWeight = FontWeight.Bold), i, i + 1)
+                    addStyle(
+                        SpanStyle(
+                            color = Color(0xFF818CF8),
+                            fontWeight = FontWeight.Bold,
+                            fontFeatureSettings = FONT_FEATURE_SETTINGS_NO_LIGATURES
+                        ),
+                        i, i + 1
+                    )
                     lastKeyword = null
                     i++
                     continue
@@ -226,7 +303,14 @@ object BasicSyntaxHighlighter {
                 if (i + 1 < len) {
                     val twoChar = code.substring(i, i + 2)
                     if (twoChar == "<=" || twoChar == ">=" || twoChar == "<>") {
-                        addStyle(SpanStyle(color = OPERATOR_COLOR, fontWeight = FontWeight.Bold), i, i + 2)
+                        addStyle(
+                            SpanStyle(
+                                color = OPERATOR_COLOR,
+                                fontWeight = FontWeight.Bold,
+                                fontFeatureSettings = FONT_FEATURE_SETTINGS_NO_LIGATURES
+                            ),
+                            i, i + 2
+                        )
                         lastKeyword = null
                         i += 2
                         continue
@@ -235,7 +319,14 @@ object BasicSyntaxHighlighter {
 
                 // Single character operators
                 if ("+-*/^=<>".contains(c)) {
-                    addStyle(SpanStyle(color = OPERATOR_COLOR, fontWeight = FontWeight.Bold), i, i + 1)
+                    addStyle(
+                        SpanStyle(
+                            color = OPERATOR_COLOR,
+                            fontWeight = FontWeight.Bold,
+                            fontFeatureSettings = FONT_FEATURE_SETTINGS_NO_LIGATURES
+                        ),
+                        i, i + 1
+                    )
                     lastKeyword = null
                     i++
                     continue

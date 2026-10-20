@@ -140,4 +140,42 @@ class BasicSyntaxHighlighterTest {
         val plusStyles = annotated.spanStyles.filter { it.start == plusStart && it.end == plusStart + 1 }
         assertEquals(BasicSyntaxHighlighter.OPERATOR_COLOR, plusStyles.first().item.color)
     }
+
+    @Test
+    fun testDisablesLigaturesOnOperatorsAndTokens() {
+        assertEquals("'calt' 0, 'liga' 0", BasicSyntaxHighlighter.FONT_FEATURE_SETTINGS_NO_LIGATURES)
+
+        val code = "10 IF X <= 5 AND Y >= 10 AND Z <> 0 THEN GOTO 100"
+        val annotated = BasicSyntaxHighlighter.highlight(code)
+
+        // <= operator
+        val lteStart = code.indexOf("<=")
+        val lteStyles = annotated.spanStyles.filter { it.start == lteStart && it.end == lteStart + 2 }
+        assertTrue("<= operator should have a SpanStyle", lteStyles.isNotEmpty())
+        assertEquals(BasicSyntaxHighlighter.OPERATOR_COLOR, lteStyles.first().item.color)
+        assertEquals(BasicSyntaxHighlighter.FONT_FEATURE_SETTINGS_NO_LIGATURES, lteStyles.first().item.fontFeatureSettings)
+
+        // >= operator
+        val gteStart = code.indexOf(">=")
+        val gteStyles = annotated.spanStyles.filter { it.start == gteStart && it.end == gteStart + 2 }
+        assertTrue(">= operator should have a SpanStyle", gteStyles.isNotEmpty())
+        assertEquals(BasicSyntaxHighlighter.OPERATOR_COLOR, gteStyles.first().item.color)
+        assertEquals(BasicSyntaxHighlighter.FONT_FEATURE_SETTINGS_NO_LIGATURES, gteStyles.first().item.fontFeatureSettings)
+
+        // <> operator
+        val neqStart = code.indexOf("<>")
+        val neqStyles = annotated.spanStyles.filter { it.start == neqStart && it.end == neqStart + 2 }
+        assertTrue("<> operator should have a SpanStyle", neqStyles.isNotEmpty())
+        assertEquals(BasicSyntaxHighlighter.OPERATOR_COLOR, neqStyles.first().item.color)
+        assertEquals(BasicSyntaxHighlighter.FONT_FEATURE_SETTINGS_NO_LIGATURES, neqStyles.first().item.fontFeatureSettings)
+
+        // All spans should have fontFeatureSettings configured to disable ligatures
+        for (span in annotated.spanStyles) {
+            assertEquals(
+                "Span style must disable font ligatures",
+                BasicSyntaxHighlighter.FONT_FEATURE_SETTINGS_NO_LIGATURES,
+                span.item.fontFeatureSettings
+            )
+        }
+    }
 }
