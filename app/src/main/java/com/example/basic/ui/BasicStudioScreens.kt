@@ -24,6 +24,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.layout.onSizeChanged
+import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -626,6 +634,28 @@ fun BasicStudioApp(viewModel: BasicViewModel) {
     }
 }
 
+/**
+ * Utility to calculate cursor line positions and target scroll offsets to keep the
+ * cursor centered vertically in the editor viewport when the soft keyboard appears.
+ */
+object EditorScrollHelper {
+    fun calculateCursorLineIndex(text: String, cursorPosition: Int): Int {
+        val safePos = cursorPosition.coerceIn(0, text.length)
+        return text.substring(0, safePos).count { it == '\n' }
+    }
+
+    fun calculateTargetScrollY(
+        cursorLineIndex: Int,
+        lineHeightPx: Float,
+        topPaddingPx: Float,
+        viewportHeightPx: Int
+    ): Int {
+        if (viewportHeightPx <= 0) return 0
+        val lineCenterY = topPaddingPx + (cursorLineIndex * lineHeightPx) + (lineHeightPx / 2f)
+        return (lineCenterY - (viewportHeightPx / 2f)).roundToInt().coerceAtLeast(0)
+    }
+}
+
 @Composable
 fun EditorScreen(
     viewModel: BasicViewModel,
@@ -888,6 +918,35 @@ fun EditorScreen(
         val verticalScrollState = rememberScrollState()
         val horizontalScrollState = rememberScrollState()
 
+        var editorViewportHeightPx by remember { mutableIntStateOf(0) }
+
+        @OptIn(ExperimentalLayoutApi::class)
+        val isImeVisible = WindowInsets.isImeVisible
+        val imeBottomPx = WindowInsets.ime.getBottom(density)
+        val isKeyboardOpen = isImeVisible || imeBottomPx > 0
+
+        // Find current 0-indexed line of cursor in text
+        val cursorLineIndex = remember(textFieldValue.text, textFieldValue.selection.start) {
+            EditorScrollHelper.calculateCursorLineIndex(textFieldValue.text, textFieldValue.selection.start)
+        }
+
+        // When on-screen keyboard pops up or cursor moves to a different line while keyboard is visible,
+        // scroll the text view to keep the cursor position centred vertically in the visible editor viewport.
+        LaunchedEffect(isKeyboardOpen, editorViewportHeightPx, cursorLineIndex) {
+            if (isKeyboardOpen && editorViewportHeightPx > 0) {
+                delay(60) // Allow layout pass and soft keyboard transition to stabilize
+                val lineHeightPx = with(density) { lineHeightDp.toPx() }
+                val topPaddingPx = with(density) { 8.dp.toPx() }
+                val targetScrollY = EditorScrollHelper.calculateTargetScrollY(
+                    cursorLineIndex = cursorLineIndex,
+                    lineHeightPx = lineHeightPx,
+                    topPaddingPx = topPaddingPx,
+                    viewportHeightPx = editorViewportHeightPx
+                )
+                verticalScrollState.animateScrollTo(targetScrollY)
+            }
+        }
+
         // Auto-scroll to current debug line during debugging
         LaunchedEffect(currentDebugLine) {
             currentDebugLine?.let { line ->
@@ -899,10 +958,23 @@ fun EditorScreen(
             }
         }
 
+        val extraBottomPaddingDp = with(density) {
+            if (editorViewportHeightPx > 0) {
+                maxOf(32.dp, (editorViewportHeightPx / 2).toDp())
+            } else {
+                32.dp
+            }
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(TerminalBg)
+                .onSizeChanged { size ->
+                    if (size.height > 0) {
+                        editorViewportHeightPx = size.height
+                    }
+                }
         ) {
             // Persistent background gutter panel so left 48.dp is always dark slate full height
             Box(
@@ -931,7 +1003,7 @@ fun EditorScreen(
                 Column(
                     modifier = Modifier
                         .width(48.dp)
-                        .padding(top = 8.dp, bottom = 32.dp),
+                        .padding(top = 8.dp, bottom = extraBottomPaddingDp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     lines.forEachIndexed { index, _ ->
@@ -986,7 +1058,7 @@ fun EditorScreen(
                     modifier = Modifier
                         .weight(1f)
                         .horizontalScroll(horizontalScrollState)
-                        .padding(top = 8.dp, bottom = 32.dp, start = 8.dp, end = 16.dp)
+                        .padding(top = 8.dp, bottom = extraBottomPaddingDp, start = 8.dp, end = 16.dp)
                 ) {
                     BasicTextField(
                         value = textFieldValue,
