@@ -872,6 +872,20 @@ class BasicVirtualMachine(
                     graphicsState = graphicsState.copy(sprites = updatedSprites, revision = graphicsState.revision + 1)
                     onGraphicsStateChanged(graphicsState)
                 }
+                OpCode.SPRITEPOS -> {
+                    val y = popValue().asNumber().toInt()
+                    val x = popValue().asNumber().toInt()
+                    val id = popValue().asNumber().toInt().coerceIn(0, 15)
+
+                    val updatedSprites = graphicsState.sprites.toMutableMap()
+                    val currentSprite = updatedSprites[id] ?: com.example.basic.graphics.Sprite(id = id)
+                    updatedSprites[id] = currentSprite.copy(
+                        x = x,
+                        y = y
+                    )
+                    graphicsState = graphicsState.copy(sprites = updatedSprites, revision = graphicsState.revision + 1)
+                    onGraphicsStateChanged(graphicsState)
+                }
                 OpCode.SPRITESHOW -> {
                     val visible = popValue().asNumber().toInt() != 0
                     val id = popValue().asNumber().toInt().coerceIn(0, 15)

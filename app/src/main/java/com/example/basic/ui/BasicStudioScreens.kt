@@ -888,7 +888,7 @@ fun EditorScreen(
                 "FOR", "TO", "STEP", "NEXT", "WHILE", "WEND",
                 "GOTO", "GOSUB", "RETURN", "DIM", "CLS", "COLOR",
                 "SCREEN", "PSET", "LINE", "RECT", "CIRCLE",
-                "SOUND", "SFX", "SPRITEDEF", "SPRITE", "SPRITEMOVE",
+                "SOUND", "SFX", "SPRITEDEF", "SPRITE", "SPRITEMOVE", "SPRITEPOS",
                 "JOYSTICK", "JOY", "FIRE",
                 "RND", "INT", "SIN", "COS", "SLEEP", "END"
             )

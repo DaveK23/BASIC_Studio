@@ -185,6 +185,7 @@ class BasicCompiler {
                 TokenType.SPRITEDEF -> parseSpriteDef(sourceLine, basicLineNum)
                 TokenType.SPRITE -> parseSprite(sourceLine, basicLineNum)
                 TokenType.SPRITEMOVE -> parseSpriteMove(sourceLine, basicLineNum)
+                TokenType.SPRITEPOS -> parseSpritePos(sourceLine, basicLineNum)
                 TokenType.SPRITESHOW -> parseSpriteShow(sourceLine, basicLineNum)
                 TokenType.JOYSTICK, TokenType.CONTROLLER -> parseJoystick(sourceLine, basicLineNum)
                 TokenType.IDENTIFIER -> {
@@ -420,6 +421,16 @@ class BasicCompiler {
             consume(TokenType.COMMA, "Expected ',' between dx and dy in SPRITEMOVE")
             parseExpression(sourceLine) // dy
             emit(OpCode.SPRITEMOVE, sourceLine = sourceLine, sourceLineNum = basicLineNum ?: -1)
+        }
+
+        private fun parseSpritePos(sourceLine: Int, basicLineNum: Int?) {
+            advance() // consume SPRITEPOS
+            parseExpression(sourceLine) // id
+            consume(TokenType.COMMA, "Expected ',' between id and x in SPRITEPOS")
+            parseExpression(sourceLine) // x
+            consume(TokenType.COMMA, "Expected ',' between x and y in SPRITEPOS")
+            parseExpression(sourceLine) // y
+            emit(OpCode.SPRITEPOS, sourceLine = sourceLine, sourceLineNum = basicLineNum ?: -1)
         }
 
         private fun parseSpriteShow(sourceLine: Int, basicLineNum: Int?) {

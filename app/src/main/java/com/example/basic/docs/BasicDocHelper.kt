@@ -57,6 +57,7 @@ object BasicDocHelper {
         DocEntry("cmd_spritedef", "SPRITEDEF", DocCategory.GRAPHICS, "Defines a pixel sprite pattern matrix (8x8 or 16x16)."),
         DocEntry("cmd_sprite", "SPRITE", DocCategory.GRAPHICS, "Places or updates a sprite instance at screen coordinates (X, Y)."),
         DocEntry("cmd_spritemove", "SPRITEMOVE", DocCategory.GRAPHICS, "Translates a sprite position by relative coordinate offsets (dX, dY)."),
+        DocEntry("cmd_spritepos", "SPRITEPOS", DocCategory.GRAPHICS, "Sets a sprite's absolute screen coordinates (X, Y) without altering pattern or color."),
         DocEntry("cmd_spriteshow", "SPRITESHOW", DocCategory.GRAPHICS, "Toggles sprite visibility state on or off."),
         DocEntry("fn_spritehit", "SPRITEHIT", DocCategory.GRAPHICS, "Tests bounding-box collision between two active sprites."),
         DocEntry("cmd_joystick", "JOYSTICK", DocCategory.GRAPHICS, "Overlays on-screen 8-way joystick and fire button on bitmap display (SCREEN 1)."),

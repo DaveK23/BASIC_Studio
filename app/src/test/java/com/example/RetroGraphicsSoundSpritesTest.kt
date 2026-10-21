@@ -48,6 +48,7 @@ class RetroGraphicsSoundSpritesTest {
             10 SPRITEDEF 0, 8, "01010101"
             20 SPRITE 0, 100, 80, 0, 4
             30 SPRITEMOVE 0, 5, -2
+            35 SPRITEPOS 0, 120, 140
             40 SPRITESHOW 0, 1
             50 HIT = SPRITEHIT(0, 1)
         """.trimIndent()
@@ -57,8 +58,34 @@ class RetroGraphicsSoundSpritesTest {
         assertTrue(ops.contains(OpCode.SPRITEDEF))
         assertTrue(ops.contains(OpCode.SPRITE))
         assertTrue(ops.contains(OpCode.SPRITEMOVE))
+        assertTrue(ops.contains(OpCode.SPRITEPOS))
         assertTrue(ops.contains(OpCode.SPRITESHOW))
         assertTrue(ops.contains(OpCode.SPRITEHIT))
+    }
+
+    @Test
+    fun testVmExecutesSpritePos() = runBlocking {
+        val code = """
+            10 SCREEN 1
+            20 SPRITEDEF 0, 8, "11111111"
+            30 SPRITE 0, 10, 20, 0, 4
+            40 SPRITEPOS 0, 150, 75
+        """.trimIndent()
+        val program = compiler.compile(code)
+        var lastGState: com.example.basic.graphics.RetroGraphicsState? = null
+
+        val vm = BasicVirtualMachine(
+            onGraphicsStateChanged = { lastGState = it }
+        )
+        vm.loadProgram(program)
+        vm.execute(debug = false)
+
+        val sprite = lastGState?.sprites?.get(0)
+        assertNotNull(sprite)
+        assertEquals(150, sprite?.x)
+        assertEquals(75, sprite?.y)
+        assertEquals(4, sprite?.colorIndex)
+        assertEquals(true, sprite?.visible)
     }
 
     @Test

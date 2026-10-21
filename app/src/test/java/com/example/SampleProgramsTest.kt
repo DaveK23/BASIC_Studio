@@ -119,4 +119,38 @@ class SampleProgramsTest {
 
         assertEquals(2.5, vm.variables["FINAL_VX"]?.asNumber() ?: 0.0, 0.001)
     }
+
+    @Test
+    fun testLunarLanderSpritePositionTracksCoordinatesWithoutAccumulatedError() = runBlocking {
+        var lastGState: com.example.basic.graphics.RetroGraphicsState? = null
+        val vm = com.example.basic.vm.BasicVirtualMachine(
+            onGraphicsStateChanged = { lastGState = it }
+        )
+        val testProgram = """
+            10 SCREEN 1
+            20 LX = 150.0 : LY = 30.0
+            30 VX = 0.5 : VY = 0.25
+            40 SPRITEDEF 0, 8, "11111111"
+            50 SPRITE 0, INT(LX), INT(LY), 0, 15
+            60 FOR T = 1 TO 4
+            70   LX = LX + VX
+            80   LY = LY + VY
+            90   SPRITEPOS 0, INT(LX), INT(LY)
+            100 NEXT T
+            110 END
+        """.trimIndent()
+
+        val bytecode = compiler.compile(testProgram)
+        vm.loadProgram(bytecode)
+        vm.execute(debug = false)
+
+        val sprite = lastGState?.sprites?.get(0)
+        assertNotNull(sprite)
+        val expectedX = (vm.variables["LX"]?.asNumber() ?: 0.0).toInt()
+        val expectedY = (vm.variables["LY"]?.asNumber() ?: 0.0).toInt()
+        assertEquals(152, expectedX)
+        assertEquals(31, expectedY)
+        assertEquals(expectedX, sprite?.x)
+        assertEquals(expectedY, sprite?.y)
+    }
 }

@@ -66,7 +66,7 @@ object BasicSyntaxHighlighter {
     val GRAPHICS_SOUND_KEYWORDS = setOf(
         "SCREEN", "PSET", "LINE", "RECT", "CIRCLE",
         "SOUND", "SFX",
-        "SPRITEDEF", "SPRITE", "SPRITEMOVE", "SPRITESHOW",
+        "SPRITEDEF", "SPRITE", "SPRITEMOVE", "SPRITEPOS", "SPRITESHOW",
         "JOYSTICK", "CONTROLLER"
     )
 

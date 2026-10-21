@@ -100,6 +100,7 @@ enum class OpCode {
     SPRITEDEF,     // pop data/pattern string, pop size, pop sprite id
     SPRITE,        // pop color, pop pattern, pop y, pop x, pop sprite id
     SPRITEMOVE,    // pop dy, pop dx, pop sprite id
+    SPRITEPOS,     // pop y, pop x, pop sprite id
     SPRITESHOW,    // pop visible (0/1), pop sprite id
     SPRITEHIT,     // pop id2, pop id1, push 1/0 collision bool
     JOYSTICK,      // pop enabled (0/1)
