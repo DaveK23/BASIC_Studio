@@ -54,7 +54,8 @@ object BasicDocHelper {
         DocEntry("cmd_sfx", "SFX", DocCategory.AUDIO, "Triggers 13 arcade SFX presets: Laser (0), Jump (1), Explosion (2), Coin (3), Powerup (4), Hurt (5), GameOver (6), Victory (7), Blip (8), Warp (9), Alarm (10), Bounce (11), Zap (12)."),
 
         // Sprites
-        DocEntry("cmd_spritedef", "SPRITEDEF", DocCategory.GRAPHICS, "Defines a pixel sprite pattern matrix (8x8 or 16x16)."),
+        DocEntry("cmd_spritedef", "SPRITEDEF", DocCategory.GRAPHICS, "Defines a monochrome pixel sprite pattern matrix (8x8 or 16x16)."),
+        DocEntry("cmd_spritedefmulti", "SPRITEDEFMULTI", DocCategory.GRAPHICS, "Defines a multicolour sprite using hex color digits and a monochrome sprite definition as transparency mask."),
         DocEntry("cmd_sprite", "SPRITE", DocCategory.GRAPHICS, "Places or updates a sprite instance at screen coordinates (X, Y)."),
         DocEntry("cmd_spritemove", "SPRITEMOVE", DocCategory.GRAPHICS, "Translates a sprite position by relative coordinate offsets (dX, dY)."),
         DocEntry("cmd_spritepos", "SPRITEPOS", DocCategory.GRAPHICS, "Sets a sprite's absolute screen coordinates (X, Y) without altering pattern or color."),

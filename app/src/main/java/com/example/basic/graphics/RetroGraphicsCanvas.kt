@@ -81,20 +81,26 @@ fun RetroGraphicsCanvas(
 }
 
 private fun DrawScope.drawSprite(sprite: Sprite, pixelW: Float, pixelH: Float) {
-    val spriteColor = RetroColorPalette[sprite.colorIndex.coerceIn(0, 15)]
+    val defaultColor = RetroColorPalette[sprite.colorIndex.coerceIn(0, 15)]
     val width = sprite.width
     val height = sprite.height
     val pattern = sprite.pattern
+    val colorPattern = sprite.colorPattern
 
     for (sy in 0 until height) {
         val rowOffset = sy * width
         for (sx in 0 until width) {
             val bitIdx = rowOffset + sx
             if (bitIdx in pattern.indices && pattern[bitIdx]) {
+                val color = if (colorPattern != null && bitIdx in colorPattern.indices) {
+                    RetroColorPalette[colorPattern[bitIdx].coerceIn(0, 15)]
+                } else {
+                    defaultColor
+                }
                 val px = (sprite.x + sx) * pixelW
                 val py = (sprite.y + sy) * pixelH
                 drawRect(
-                    color = spriteColor,
+                    color = color,
                     topLeft = Offset(px, py),
                     size = Size(pixelW + 0.5f, pixelH + 0.5f)
                 )

@@ -5,9 +5,11 @@ import com.example.basic.compiler.BasicCompiler
 import com.example.basic.model.BasicValue
 import com.example.basic.model.OpCode
 import com.example.basic.vm.BasicVirtualMachine
+import com.example.basic.vm.VmState
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -46,6 +48,7 @@ class RetroGraphicsSoundSpritesTest {
     fun testCompilerGeneratesSpriteOpCodes() {
         val code = """
             10 SPRITEDEF 0, 8, "01010101"
+            15 SPRITEDEFMULTI 1, 8, "01234567", 0
             20 SPRITE 0, 100, 80, 0, 4
             30 SPRITEMOVE 0, 5, -2
             35 SPRITEPOS 0, 120, 140
@@ -56,6 +59,7 @@ class RetroGraphicsSoundSpritesTest {
         val ops = program.instructions.map { it.op }
 
         assertTrue(ops.contains(OpCode.SPRITEDEF))
+        assertTrue(ops.contains(OpCode.SPRITEDEFMULTI))
         assertTrue(ops.contains(OpCode.SPRITE))
         assertTrue(ops.contains(OpCode.SPRITEMOVE))
         assertTrue(ops.contains(OpCode.SPRITEPOS))
@@ -302,6 +306,189 @@ class RetroGraphicsSoundSpritesTest {
         assertNotNull(s4)
         assertEquals(s0?.pattern, s4?.pattern)
         assertEquals(5, s4?.colorIndex)
+    }
+
+    @Test
+    fun testVmExecutesSpriteDefMultiWithMask() = runBlocking {
+        var lastGState: com.example.basic.graphics.RetroGraphicsState? = null
+        val vm = BasicVirtualMachine(
+            onGraphicsStateChanged = { lastGState = it }
+        )
+        // 8x8 mask: alternate 4 solid and 4 transparent in each row
+        // 8x8 hex: 64 hex characters (0..F repeated 4 times)
+        val maskPattern = "11110000".repeat(8)
+        val hexPattern = "0123456789ABCDEF".repeat(4)
+
+        val code = """
+            10 SCREEN 1
+            20 SPRITEDEF 0, 8, "$maskPattern"
+            30 SPRITEDEFMULTI 1, 8, "$hexPattern", 0
+            40 SPRITE 1, 40, 50, 1, 15
+            50 SPRITEDEFMULTI 2, "$hexPattern", 0
+            60 SPRITE 2, 70, 80, 2, 1
+        """.trimIndent()
+
+        val program = compiler.compile(code)
+        vm.loadProgram(program)
+        vm.execute(debug = false)
+
+        assertEquals(VmState.TERMINATED, vm.state)
+        val s1 = lastGState?.sprites?.get(1)
+        assertNotNull(s1)
+        assertEquals(40, s1?.x)
+        assertEquals(50, s1?.y)
+        assertEquals(64, s1?.pattern?.size)
+        // Check mask applied correctly
+        assertEquals(true, s1?.pattern?.get(0))
+        assertEquals(false, s1?.pattern?.get(4))
+        // Check colorPattern attached correctly
+        assertNotNull(s1?.colorPattern)
+        assertEquals(64, s1?.colorPattern?.size)
+        assertEquals(0, s1?.colorPattern?.get(0))
+        assertEquals(1, s1?.colorPattern?.get(1))
+        assertEquals(15, s1?.colorPattern?.get(15))
+
+        // Check 3-argument version (Sprite 2)
+        val s2 = lastGState?.sprites?.get(2)
+        assertNotNull(s2)
+        assertEquals(70, s2?.x)
+        assertEquals(80, s2?.y)
+        assertEquals(s1?.pattern, s2?.pattern)
+        assertEquals(s1?.colorPattern, s2?.colorPattern)
+    }
+
+    @Test
+    fun testSpriteDefMultiDimensionMismatchCausesError() = runBlocking {
+        val vm = BasicVirtualMachine()
+        // Mask is 8x8 (64 pixels), but hexPattern only has 16 characters
+        val code = """
+            10 SCREEN 1
+            20 SPRITEDEF 0, 8, "1111000011110000111100001111000000001111000011110000111100001111"
+            30 SPRITEDEFMULTI 1, 8, "0123456789ABCDEF", 0
+        """.trimIndent()
+
+        val program = compiler.compile(code)
+        vm.loadProgram(program)
+        vm.execute(debug = false)
+
+        assertEquals(VmState.ERROR, vm.state)
+        assertNotNull(vm.lastError)
+        assertTrue(
+            "Error message should mention dimension mismatch: ${vm.lastError}",
+            vm.lastError!!.contains("dimension", ignoreCase = true)
+        )
+    }
+
+    @Test
+    fun testSpriteDefMultiMissingMaskCausesError() = runBlocking {
+        val vm = BasicVirtualMachine()
+        val hexPattern = "0123456789ABCDEF".repeat(4)
+        val code = """
+            10 SCREEN 1
+            20 SPRITEDEFMULTI 1, 8, "$hexPattern", 9
+        """.trimIndent()
+
+        val program = compiler.compile(code)
+        vm.loadProgram(program)
+        vm.execute(debug = false)
+
+        assertEquals(VmState.ERROR, vm.state)
+        assertNotNull(vm.lastError)
+        assertTrue(
+            "Error message should mention undefined mask: ${vm.lastError}",
+            vm.lastError!!.contains("mask", ignoreCase = true)
+        )
+    }
+
+    @Test
+    fun testSpriteDefMultiSharesIdWithMonochromeSprites() = runBlocking {
+        var lastGState: com.example.basic.graphics.RetroGraphicsState? = null
+        val vm = BasicVirtualMachine(
+            onGraphicsStateChanged = { lastGState = it }
+        )
+        val maskPattern = "11111111".repeat(8)
+        val hexPattern = "0123456789ABCDEF".repeat(4)
+
+        val code = """
+            10 SCREEN 1
+            20 SPRITEDEF 0, 8, "$maskPattern"
+            30 SPRITE 0, 10, 10, 0, 4
+            40 SPRITEDEFMULTI 0, 8, "$hexPattern", 0
+            50 SPRITE 0, 10, 10, 0, 4
+        """.trimIndent()
+
+        val program = compiler.compile(code)
+        vm.loadProgram(program)
+        vm.execute(debug = false)
+
+        val s0 = lastGState?.sprites?.get(0)
+        assertNotNull(s0)
+        assertNotNull(s0?.colorPattern)
+        assertEquals(64, s0?.colorPattern?.size)
+
+        // Now redefine back to monochrome with SPRITEDEF 0
+        val code2 = """
+            10 SPRITEDEF 0, 8, "$maskPattern"
+            20 SPRITE 0, 10, 10, 0, 4
+        """.trimIndent()
+        val program2 = compiler.compile(code2)
+        vm.loadProgram(program2)
+        vm.execute(debug = false)
+
+        val s0Mono = lastGState?.sprites?.get(0)
+        assertNotNull(s0Mono)
+        assertNull(s0Mono?.colorPattern)
+    }
+
+    @Test
+    fun testBitmapDefinitionsDecoupledFromActiveSpriteIds() = runBlocking {
+        var lastGState: com.example.basic.graphics.RetroGraphicsState? = null
+        val vm = BasicVirtualMachine(
+            onGraphicsStateChanged = { lastGState = it }
+        )
+        val maskPattern = "11110000".repeat(8)
+        val hexPattern1 = "1111222233334444".repeat(4)
+        val hexPattern2 = "5555666677778888".repeat(4)
+
+        val code = """
+            10 SCREEN 1
+            20 REM Define arbitrary high bitmap IDs (50 and 100)
+            30 SPRITEDEF 50, 8, "$maskPattern"
+            40 SPRITEDEFMULTI 100, 8, "$hexPattern1", 50
+            50 REM No active sprites placed yet
+            60 REM Now assign bitmaps to active sprite slots 0, 1, and 2
+            70 SPRITE 0, 10, 20, 50, 2
+            80 SPRITE 1, 30, 40, 100, 15
+            90 SPRITE 2, 50, 60, 100, 14
+            100 REM Dynamically redefine bitmap 100
+            110 SPRITEDEFMULTI 100, 8, "$hexPattern2", 50
+        """.trimIndent()
+
+        val program = compiler.compile(code)
+        vm.loadProgram(program)
+        vm.execute(debug = false)
+
+        assertNotNull(lastGState)
+        assertEquals(3, lastGState?.sprites?.size)
+
+        // Active sprite 0 uses bitmap 50
+        val s0 = lastGState?.sprites?.get(0)
+        assertNotNull(s0)
+        assertEquals(50, s0?.patternDefId)
+        assertEquals(2, s0?.colorIndex)
+        assertNull(s0?.colorPattern)
+
+        // Active sprite 1 and sprite 2 both share bitmap 100, and received the updated pattern from line 110
+        val s1 = lastGState?.sprites?.get(1)
+        val s2 = lastGState?.sprites?.get(2)
+        assertNotNull(s1)
+        assertNotNull(s2)
+        assertEquals(100, s1?.patternDefId)
+        assertEquals(100, s2?.patternDefId)
+        assertNotNull(s1?.colorPattern)
+        assertNotNull(s2?.colorPattern)
+        assertEquals(5, s1?.colorPattern?.get(0))
+        assertEquals(5, s2?.colorPattern?.get(0))
     }
 }
 

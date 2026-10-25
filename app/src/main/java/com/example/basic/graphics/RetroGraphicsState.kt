@@ -36,7 +36,11 @@ data class Sprite(
     val colorIndex: Int = 1,
     val visible: Boolean = true,
     // Pixel pattern: 2D array or flat row bits (true = colored pixel, false = transparent)
-    val pattern: List<Boolean> = List(64) { false }
+    val pattern: List<Boolean> = List(64) { false },
+    // For multicolour sprites: per-pixel 16-color indices (0..15). If null, uses monochrome colorIndex.
+    val colorPattern: List<Int>? = null,
+    // Bitmap / pattern definition ID assigned to this active sprite
+    val patternDefId: Int? = null
 ) {
     /**
      * Checks bounding box collision with another sprite.

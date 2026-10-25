@@ -180,7 +180,8 @@ data class JoystickState(
 data class SpriteDefinition(
     val width: Int = 8,
     val height: Int = 8,
-    val pattern: List<Boolean> = List(64) { false }
+    val pattern: List<Boolean> = List(64) { false },
+    val colorPattern: List<Int>? = null
 )
 
 /**
@@ -206,6 +207,9 @@ class BasicVirtualMachine(
         private set
 
     var state = VmState.IDLE
+        private set
+
+    var lastError: String? = null
         private set
 
     val stack = ArrayDeque<BasicValue>()
@@ -262,6 +266,7 @@ class BasicVirtualMachine(
         isStopRequested = false
         isPauseRequested = false
         pendingInputDeferred = null
+        lastError = null
         state = VmState.IDLE
         graphicsState = com.example.basic.graphics.RetroGraphicsState()
         joystickState = JoystickState()
@@ -817,17 +822,151 @@ class BasicVirtualMachine(
                 OpCode.SPRITEDEF -> {
                     val patRaw = popValue().toString()
                     val size = popValue().asNumber().toInt().let { if (it == 16) 16 else 8 }
-                    val id = popValue().asNumber().toInt().coerceIn(0, 15)
+                    val id = popValue().asNumber().toInt().coerceAtLeast(0)
 
                     val bits = parseSpritePattern(patRaw, size)
-                    val def = SpriteDefinition(width = size, height = size, pattern = bits)
+                    val def = SpriteDefinition(width = size, height = size, pattern = bits, colorPattern = null)
                     spriteDefinitions[id] = def
 
+                    // Update any active sprites currently using this bitmap definition
                     val updatedSprites = graphicsState.sprites.toMutableMap()
-                    val currentSprite = updatedSprites[id] ?: com.example.basic.graphics.Sprite(id = id, width = size, height = size)
-                    updatedSprites[id] = currentSprite.copy(width = size, height = size, pattern = bits)
-                    graphicsState = graphicsState.copy(sprites = updatedSprites, revision = graphicsState.revision + 1)
-                    onGraphicsStateChanged(graphicsState)
+                    var changed = false
+                    for ((sId, spr) in updatedSprites) {
+                        if (spr.patternDefId == id || (spr.patternDefId == null && sId == id)) {
+                            updatedSprites[sId] = spr.copy(width = size, height = size, pattern = bits, colorPattern = null, patternDefId = id)
+                            changed = true
+                        }
+                    }
+                    if (changed) {
+                        graphicsState = graphicsState.copy(sprites = updatedSprites, revision = graphicsState.revision + 1)
+                        onGraphicsStateChanged(graphicsState)
+                    }
+                }
+                OpCode.SPRITEDEFMULTI -> {
+                    val argCount = inst.argInt
+                    val id: Int
+                    val explicitSize: Int?
+                    val hexPattern: String
+                    val maskId: Int
+
+                    if (argCount == 4) {
+                        val val4 = popValue()
+                        val val3 = popValue()
+                        val val2 = popValue()
+                        val val1 = popValue()
+                        id = val1.asNumber().toInt().coerceAtLeast(0)
+
+                        if (val3 is BasicValue.StringVal) {
+                            explicitSize = val2.asNumber().toInt()
+                            hexPattern = val3.toString()
+                            maskId = val4.asNumber().toInt()
+                        } else if (val4 is BasicValue.StringVal) {
+                            explicitSize = val2.asNumber().toInt()
+                            maskId = val3.asNumber().toInt()
+                            hexPattern = val4.toString()
+                        } else if (val2 is BasicValue.StringVal) {
+                            hexPattern = val2.toString()
+                            maskId = val3.asNumber().toInt()
+                            explicitSize = val4.asNumber().toInt()
+                        } else {
+                            explicitSize = val2.asNumber().toInt()
+                            hexPattern = val3.toString()
+                            maskId = val4.asNumber().toInt()
+                        }
+                    } else {
+                        // 3 arguments
+                        val val3 = popValue()
+                        val val2 = popValue()
+                        val val1 = popValue()
+                        id = val1.asNumber().toInt().coerceAtLeast(0)
+                        explicitSize = null
+
+                        if (val2 is BasicValue.StringVal) {
+                            hexPattern = val2.toString()
+                            maskId = val3.asNumber().toInt()
+                        } else if (val3 is BasicValue.StringVal) {
+                            maskId = val2.asNumber().toInt()
+                            hexPattern = val3.toString()
+                        } else {
+                            hexPattern = val2.toString()
+                            maskId = val3.asNumber().toInt()
+                        }
+                    }
+
+                    // Retrieve monochrome sprite definition to use as transparency mask
+                    val maskDef = spriteDefinitions[maskId]
+                        ?: throw IllegalArgumentException("Transparency mask sprite definition $maskId is not defined")
+
+                    val maskW = maskDef.width
+                    val maskH = maskDef.height
+                    val maskPixelCount = maskW * maskH
+
+                    // Validate explicit size if passed
+                    if (explicitSize != null && explicitSize > 0 && (explicitSize != maskW || explicitSize != maskH)) {
+                        throw IllegalArgumentException("Dimensions mismatch: Specified size $explicitSize does not match transparency mask dimensions (${maskW}x${maskH})")
+                    }
+
+                    // Check multiline / delimited format
+                    val cleanPat = hexPattern.trim().trim('"', '\'')
+                    val hasLines = cleanPat.contains('\n') || cleanPat.contains('/')
+                    if (hasLines) {
+                        val delim = if (cleanPat.contains('\n')) '\n' else '/'
+                        val rows = cleanPat.split(delim).map { it.trim().replace(" ", "").replace("\t", "").replace("\r", "") }.filter { it.isNotEmpty() }
+                        if (rows.size != maskH) {
+                            throw IllegalArgumentException("Dimensions mismatch: Colour definition row count (${rows.size}) does not match transparency mask height ($maskH)")
+                        }
+                        for ((idx, row) in rows.withIndex()) {
+                            if (row.length != maskW) {
+                                throw IllegalArgumentException("Dimensions mismatch: Colour definition row $idx width (${row.length}) does not match transparency mask width ($maskW)")
+                            }
+                        }
+                    }
+
+                    // Clean and extract hex digits
+                    var hexBody = cleanPat
+                    if (hexBody.startsWith("0x", ignoreCase = true) || hexBody.startsWith("&H", ignoreCase = true)) {
+                        hexBody = hexBody.substring(2)
+                    }
+                    val hexChars = hexBody.filter { it.isLetterOrDigit() }
+
+                    if (hexChars.length != maskPixelCount) {
+                        throw IllegalArgumentException("Dimensions mismatch: Colour definition pixel count (${hexChars.length}) does not match transparency mask pixel count ($maskPixelCount)")
+                    }
+
+                    val hexColors = ArrayList<Int>(maskPixelCount)
+                    for (ch in hexChars) {
+                        val col = ch.digitToIntOrNull(16)
+                            ?: throw IllegalArgumentException("Invalid hex digit '$ch' in SPRITEDEFMULTI colour pattern")
+                        hexColors.add(col)
+                    }
+
+                    val def = SpriteDefinition(
+                        width = maskW,
+                        height = maskH,
+                        pattern = maskDef.pattern,
+                        colorPattern = hexColors
+                    )
+                    spriteDefinitions[id] = def
+
+                    // Update any active sprites currently using this bitmap definition
+                    val updatedSprites = graphicsState.sprites.toMutableMap()
+                    var changed = false
+                    for ((sId, spr) in updatedSprites) {
+                        if (spr.patternDefId == id || (spr.patternDefId == null && sId == id)) {
+                            updatedSprites[sId] = spr.copy(
+                                width = maskW,
+                                height = maskH,
+                                pattern = maskDef.pattern,
+                                colorPattern = hexColors,
+                                patternDefId = id
+                            )
+                            changed = true
+                        }
+                    }
+                    if (changed) {
+                        graphicsState = graphicsState.copy(sprites = updatedSprites, revision = graphicsState.revision + 1)
+                        onGraphicsStateChanged(graphicsState)
+                    }
                 }
                 OpCode.SPRITE -> {
                     val colorArg = popValue().asNumber().toInt()
@@ -840,11 +979,13 @@ class BasicVirtualMachine(
                     val currentSprite = updatedSprites[id] ?: com.example.basic.graphics.Sprite(id = id)
 
                     // Apply pattern definition from spriteDefinitions if patArg is valid
-                    val patternDef = if (patArg >= 0) spriteDefinitions[patArg] else null
+                    val targetPatId = if (patArg >= 0) patArg else (currentSprite.patternDefId ?: id)
+                    val patternDef = if (targetPatId >= 0) spriteDefinitions[targetPatId] else null
                     val finalPattern = patternDef?.pattern ?: currentSprite.pattern
                     val finalWidth = patternDef?.width ?: currentSprite.width
                     val finalHeight = patternDef?.height ?: currentSprite.height
                     val finalColor = if (colorArg >= 0) colorArg % 16 else currentSprite.colorIndex
+                    val finalColorPattern = if (patternDef != null) patternDef.colorPattern else currentSprite.colorPattern
 
                     updatedSprites[id] = currentSprite.copy(
                         x = x,
@@ -853,6 +994,8 @@ class BasicVirtualMachine(
                         height = finalHeight,
                         pattern = finalPattern,
                         colorIndex = finalColor,
+                        colorPattern = finalColorPattern,
+                        patternDefId = targetPatId,
                         visible = true
                     )
                     graphicsState = graphicsState.copy(sprites = updatedSprites, revision = graphicsState.revision + 1)
@@ -943,6 +1086,7 @@ class BasicVirtualMachine(
             }
         } catch (e: Exception) {
             state = VmState.ERROR
+            lastError = e.message
             onStateChange(state)
             onOutput(TerminalLine(text = "\n[RUNTIME ERROR at line ${inst.sourceLine}]: ${e.message}\n", isError = true))
             return false

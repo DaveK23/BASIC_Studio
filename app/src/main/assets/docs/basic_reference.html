@@ -568,6 +568,7 @@
       <div class="toc-section-title">Sprites Engine</div>
       <div class="toc-grid">
         <a href="#cmd_spritedef" class="toc-chip graphics">SPRITEDEF</a>
+        <a href="#cmd_spritedefmulti" class="toc-chip graphics">SPRITEDEFMULTI</a>
         <a href="#cmd_sprite" class="toc-chip graphics">SPRITE</a>
         <a href="#cmd_spritemove" class="toc-chip graphics">SPRITEMOVE</a>
         <a href="#cmd_spritepos" class="toc-chip graphics">SPRITEPOS</a>
@@ -1099,33 +1100,58 @@
     <!-- SPRITEDEF -->
     <div id="cmd_spritedef" class="doc-entry" data-keywords="spritedef sprite define pattern matrix bitmap 8x8 16x16">
       <div class="doc-header">
-        <div class="doc-title">SPRITEDEF id, size, pattern</div>
+        <div class="doc-title">SPRITEDEF bitmapId, size, pattern</div>
         <span class="doc-category-badge badge-graphics">Sprites</span>
       </div>
       <div class="syntax-box">
-        <b>SPRITEDEF</b> &lt;id&gt;, &lt;size: 8 or 16&gt;, &lt;"pattern string"&gt;
+        <b>SPRITEDEF</b> &lt;bitmapId&gt;, &lt;size: 8 or 16&gt;, &lt;"pattern string"&gt;
       </div>
       <div class="doc-desc">
-        Defines a sprite graphic bitmask with a unique <code>id</code>.
-        The pattern string is composed of characters (e.g. <code>.</code> for transparent, <code>#</code> or <code>1</code> for solid pixel).
+        Defines a monochrome sprite graphic bitmap pattern with an independent <code>bitmapId</code>.
+        Any number of bitmaps can be defined separately from active sprites.
+        The pattern string is composed of characters (e.g. <code>.</code> or <code>0</code> for transparent, <code>#</code> or <code>1</code> for solid pixel).
       </div>
       <div class="example-header">Example:</div>
-      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">SPRITEDEF</span> <span class="code-num">1</span>, <span class="code-num">8</span>, <span class="code-str">"..####....####..##....####....####....####....##"</span>
-<span class="code-num">20</span> <span class="code-kw">SPRITE</span> <span class="code-num">1</span>, <span class="code-num">100</span>, <span class="code-num">50</span>, <span class="code-num">1</span>, <span class="code-num">14</span></pre>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">SPRITEDEF</span> <span class="code-num">50</span>, <span class="code-num">8</span>, <span class="code-str">"..####....####..##....####....####....####....##"</span>
+<span class="code-num">20</span> <span class="code-kw">SPRITE</span> <span class="code-num">0</span>, <span class="code-num">100</span>, <span class="code-num">50</span>, <span class="code-num">50</span>, <span class="code-num">14</span></pre>
+      <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
+    </div>
+
+    <!-- SPRITEDEFMULTI -->
+    <div id="cmd_spritedefmulti" class="doc-entry" data-keywords="spritedefmulti multicolour multicolor sprite hex palette mask transparency">
+      <div class="doc-header">
+        <div class="doc-title">SPRITEDEFMULTI bitmapId [, size], hexPattern, maskBitmapId</div>
+        <span class="doc-category-badge badge-graphics">Sprites</span>
+      </div>
+      <div class="syntax-box">
+        <b>SPRITEDEFMULTI</b> &lt;bitmapId&gt;, [&lt;size: 8 or 16&gt;,] &lt;"hexPattern"&gt;, &lt;maskBitmapId&gt;
+      </div>
+      <div class="doc-desc">
+        Defines a multicolour sprite bitmap pattern with an independent <code>bitmapId</code>.
+        Each pixel's color is chosen using hexadecimal digits (<code>0</code> through <code>F</code> corresponding to the 16-color retro palette).
+        A previously defined monochrome bitmap (<code>maskBitmapId</code>) acts as the transparency mask (opaque where the mask is solid, transparent where 0).
+        Causes a runtime error if the transparency mask and the pixel colour definitions do not have the same dimensions.
+      </div>
+      <div class="example-header">Example:</div>
+      <pre class="code-block"><span class="code-num">10</span> <span class="code-kw">SPRITEDEF</span> <span class="code-num">0</span>, <span class="code-num">8</span>, <span class="code-str">"0011110001111110111111111111111111111111111111110111111000111100"</span>
+<span class="code-num">20</span> <span class="code-kw">SPRITEDEFMULTI</span> <span class="code-num">100</span>, <span class="code-num">8</span>, <span class="code-str">"0022220002EEEE202EEEEEE22EEEEEE22EEEEEE22EEEEEE202EEEE2000222200"</span>, <span class="code-num">0</span>
+<span class="code-num">30</span> <span class="code-kw">SPRITE</span> <span class="code-num">1</span>, <span class="code-num">140</span>, <span class="code-num">90</span>, <span class="code-num">100</span></pre>
       <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
     </div>
 
     <!-- SPRITE -->
     <div id="cmd_sprite" class="doc-entry" data-keywords="sprite place show render position x y">
       <div class="doc-header">
-        <div class="doc-title">SPRITE id, X, Y [, pattern] [, color]</div>
+        <div class="doc-title">SPRITE spriteId, X, Y [, bitmapId] [, color]</div>
         <span class="doc-category-badge badge-graphics">Sprites</span>
       </div>
       <div class="syntax-box">
-        <b>SPRITE</b> &lt;id&gt;, &lt;X&gt;, &lt;Y&gt; [, &lt;pattern&gt;] [, &lt;color&gt;]
+        <b>SPRITE</b> &lt;spriteId: 0-15&gt;, &lt;X&gt;, &lt;Y&gt; [, &lt;bitmapId&gt;] [, &lt;color&gt;]
       </div>
       <div class="doc-desc">
-        Places or repositions sprite <code>id</code> at screen coordinates <code>(X, Y)</code>.
+        Places or repositions active on-screen hardware sprite slot <code>spriteId</code> (0 to 15) at screen coordinates <code>(X, Y)</code>.
+        Optionally assigns a previously defined bitmap pattern (<code>bitmapId</code>) and tint color (for monochrome sprites).
+        Multiple active sprites can share the same <code>bitmapId</code>.
       </div>
       <a href="#toc" class="doc-footer-link">&uarr; Back to Top</a>
     </div>

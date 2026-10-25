@@ -98,6 +98,7 @@ enum class OpCode {
 
     // Hardware Sprites
     SPRITEDEF,     // pop data/pattern string, pop size, pop sprite id
+    SPRITEDEFMULTI,// pop mask/pattern/size/id, argInt = argCount (3 or 4)
     SPRITE,        // pop color, pop pattern, pop y, pop x, pop sprite id
     SPRITEMOVE,    // pop dy, pop dx, pop sprite id
     SPRITEPOS,     // pop y, pop x, pop sprite id

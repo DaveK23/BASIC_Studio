@@ -183,6 +183,7 @@ class BasicCompiler {
                 TokenType.SOUND -> parseSound(sourceLine, basicLineNum)
                 TokenType.SFX -> parseSfx(sourceLine, basicLineNum)
                 TokenType.SPRITEDEF -> parseSpriteDef(sourceLine, basicLineNum)
+                TokenType.SPRITEDEFMULTI -> parseSpriteDefMulti(sourceLine, basicLineNum)
                 TokenType.SPRITE -> parseSprite(sourceLine, basicLineNum)
                 TokenType.SPRITEMOVE -> parseSpriteMove(sourceLine, basicLineNum)
                 TokenType.SPRITEPOS -> parseSpritePos(sourceLine, basicLineNum)
@@ -389,6 +390,22 @@ class BasicCompiler {
             consume(TokenType.COMMA, "Expected ',' between size and pattern data in SPRITEDEF")
             parseExpression(sourceLine) // pattern string or expression
             emit(OpCode.SPRITEDEF, sourceLine = sourceLine, sourceLineNum = basicLineNum ?: -1)
+        }
+
+        private fun parseSpriteDefMulti(sourceLine: Int, basicLineNum: Int?) {
+            advance() // consume SPRITEDEFMULTI
+            parseExpression(sourceLine) // arg 1 (id)
+            consume(TokenType.COMMA, "Expected ',' after sprite id in SPRITEDEFMULTI")
+            parseExpression(sourceLine) // arg 2 (size or hexPattern or maskId)
+            consume(TokenType.COMMA, "Expected ',' after second argument in SPRITEDEFMULTI")
+            parseExpression(sourceLine) // arg 3 (hexPattern or maskId)
+
+            var argCount = 3
+            if (match(TokenType.COMMA)) {
+                parseExpression(sourceLine) // arg 4 (maskId or hexPattern)
+                argCount = 4
+            }
+            emit(OpCode.SPRITEDEFMULTI, argInt = argCount, sourceLine = sourceLine, sourceLineNum = basicLineNum ?: -1)
         }
 
         private fun parseSprite(sourceLine: Int, basicLineNum: Int?) {
