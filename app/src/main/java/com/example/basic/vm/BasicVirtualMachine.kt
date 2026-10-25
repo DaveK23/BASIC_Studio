@@ -632,32 +632,62 @@ class BasicVirtualMachine(
                 OpCode.EQ -> {
                     val b = popValue()
                     val a = popValue()
-                    stack.addLast(BasicValue.BooleanVal(a.toString() == b.toString()))
+                    val equal = if (a is BasicValue.StringVal || b is BasicValue.StringVal) {
+                        a.toString() == b.toString()
+                    } else {
+                        a.asNumber() == b.asNumber()
+                    }
+                    stack.addLast(BasicValue.BooleanVal(equal))
                 }
                 OpCode.NEQ -> {
                     val b = popValue()
                     val a = popValue()
-                    stack.addLast(BasicValue.BooleanVal(a.toString() != b.toString()))
+                    val notEqual = if (a is BasicValue.StringVal || b is BasicValue.StringVal) {
+                        a.toString() != b.toString()
+                    } else {
+                        a.asNumber() != b.asNumber()
+                    }
+                    stack.addLast(BasicValue.BooleanVal(notEqual))
                 }
                 OpCode.LT -> {
-                    val b = popValue().asNumber()
-                    val a = popValue().asNumber()
-                    stack.addLast(BasicValue.BooleanVal(a < b))
+                    val b = popValue()
+                    val a = popValue()
+                    val res = if (a is BasicValue.StringVal && b is BasicValue.StringVal) {
+                        a.value < b.value
+                    } else {
+                        a.asNumber() < b.asNumber()
+                    }
+                    stack.addLast(BasicValue.BooleanVal(res))
                 }
                 OpCode.LTE -> {
-                    val b = popValue().asNumber()
-                    val a = popValue().asNumber()
-                    stack.addLast(BasicValue.BooleanVal(a <= b))
+                    val b = popValue()
+                    val a = popValue()
+                    val res = if (a is BasicValue.StringVal && b is BasicValue.StringVal) {
+                        a.value <= b.value
+                    } else {
+                        a.asNumber() <= b.asNumber()
+                    }
+                    stack.addLast(BasicValue.BooleanVal(res))
                 }
                 OpCode.GT -> {
-                    val b = popValue().asNumber()
-                    val a = popValue().asNumber()
-                    stack.addLast(BasicValue.BooleanVal(a > b))
+                    val b = popValue()
+                    val a = popValue()
+                    val res = if (a is BasicValue.StringVal && b is BasicValue.StringVal) {
+                        a.value > b.value
+                    } else {
+                        a.asNumber() > b.asNumber()
+                    }
+                    stack.addLast(BasicValue.BooleanVal(res))
                 }
                 OpCode.GTE -> {
-                    val b = popValue().asNumber()
-                    val a = popValue().asNumber()
-                    stack.addLast(BasicValue.BooleanVal(a >= b))
+                    val b = popValue()
+                    val a = popValue()
+                    val res = if (a is BasicValue.StringVal && b is BasicValue.StringVal) {
+                        a.value >= b.value
+                    } else {
+                        a.asNumber() >= b.asNumber()
+                    }
+                    stack.addLast(BasicValue.BooleanVal(res))
                 }
                 OpCode.AND -> {
                     val b = popValue().toBoolean()
@@ -1045,7 +1075,7 @@ class BasicVirtualMachine(
                     val s1 = graphicsState.sprites[id1]
                     val s2 = graphicsState.sprites[id2]
                     val hits = if (s1 != null && s2 != null) s1.hits(s2) else false
-                    stack.addLast(BasicValue.BooleanVal(hits))
+                    stack.addLast(BasicValue.NumberVal(if (hits) 1.0 else 0.0))
                 }
                 OpCode.JOYSTICK -> {
                     val enabled = popValue().asNumber().toInt() != 0

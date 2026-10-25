@@ -490,5 +490,36 @@ class RetroGraphicsSoundSpritesTest {
         assertEquals(5, s1?.colorPattern?.get(0))
         assertEquals(5, s2?.colorPattern?.get(0))
     }
+
+    @Test
+    fun testSpriteHitGalaxyInvadersCoordinates() = runBlocking {
+        val vm = BasicVirtualMachine()
+        val code = """
+            10 SCREEN 1
+            20 SPRITEDEF 1, 8, "0010010001011010011111101101101111111111010000101010010101000010"
+            30 SPRITEDEF 2, 8, "0001100000111100000110000001100000011000000110000011110000011000"
+            40 REM Alien (id 1) at (148, 30), Laser (id 2) at (145, 35)
+            50 SPRITE 1, 148, 30, 1, 14
+            60 SPRITE 2, 145, 35, 2, 12
+            70 LACTIVE = 1
+            80 HIT_RAW = SPRITEHIT(1, 2)
+            90 HIT_EQ = 0
+            100 IF SPRITEHIT(1, 2) = 1 THEN HIT_EQ = 1
+            110 COMBINED = 0
+            120 IF LACTIVE = 1 AND SPRITEHIT(1, 2) = 1 THEN COMBINED = 1
+            130 REM Move laser past alien so no collision
+            140 SPRITEPOS 2, 145, 20
+            150 NO_HIT = SPRITEHIT(1, 2)
+        """.trimIndent()
+
+        val program = compiler.compile(code)
+        vm.loadProgram(program)
+        vm.execute(debug = false)
+
+        assertEquals(1.0, vm.variables["HIT_RAW"]?.asNumber() ?: 0.0, 0.001)
+        assertEquals(1.0, vm.variables["HIT_EQ"]?.asNumber() ?: 0.0, 0.001)
+        assertEquals(1.0, vm.variables["COMBINED"]?.asNumber() ?: 0.0, 0.001)
+        assertEquals(0.0, vm.variables["NO_HIT"]?.asNumber() ?: 1.0, 0.001)
+    }
 }
 
