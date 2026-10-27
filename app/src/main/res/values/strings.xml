@@ -54,4 +54,16 @@
     <string name="close_action">Close</string>
     <string name="quick_help">Quick Help</string>
     <string name="doc_for_token">Help: %1$s</string>
+    <string name="inspect_sprite">Inspect Sprite</string>
+    <string name="sprite_hitboxes">Hitboxes</string>
+    <string name="sprite_hitboxes_on">Hitboxes: ON</string>
+    <string name="sprite_hitboxes_off">Hitboxes: OFF</string>
+    <string name="collision_mask">Collision Mask</string>
+    <string name="bounding_box">Bounding Box</string>
+    <string name="no_sprites_defined">No active sprites defined</string>
+    <string name="step_line">Step Line</string>
+    <string name="step_instruction">Step Inst</string>
+    <string name="tab_variables">Variables</string>
+    <string name="tab_inspect_sprite">Inspect Sprite</string>
+    <string name="tab_canvas_preview">Screen Hitboxes</string>
 </resources>

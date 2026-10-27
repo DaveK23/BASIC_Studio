@@ -223,6 +223,8 @@ class BasicVirtualMachine(
 
     // Sprite pattern definition table (supports sharing pattern definitions across multiple sprites)
     private val spriteDefinitions = mutableMapOf<Int, SpriteDefinition>()
+    val spriteDefinitionsMap: Map<Int, SpriteDefinition>
+        get() = spriteDefinitions.toMap()
 
     // Controller (8-way joystick and fire button) State
     var joystickState = JoystickState()
@@ -371,6 +373,7 @@ class BasicVirtualMachine(
                 onStateChange(state)
                 onIpChanged(ip, currentLine)
                 onVariablesChanged(variables.toMap())
+                onGraphicsStateChanged(graphicsState)
                 val displayLine = if (instruction.sourceLineNum > 0) instruction.sourceLineNum else currentLine
                 onBreakpointHit(displayLine)
                 onOutput(TerminalLine("\n*** BREAKPOINT HIT AT LINE $displayLine ***\n", colorIndex = 14, isSystemNotice = true))
@@ -427,6 +430,7 @@ class BasicVirtualMachine(
             val currentInstructionLine = p.instructions.getOrNull(ip)?.sourceLine ?: -1
             onIpChanged(ip, currentInstructionLine)
             onVariablesChanged(variables.toMap())
+            onGraphicsStateChanged(graphicsState)
             return
         }
 

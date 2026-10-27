@@ -67,6 +67,11 @@ import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.FilterCenterFocus
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.Widgets
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.input.OffsetMapping
@@ -1137,23 +1142,67 @@ fun TerminalScreen(
                     fontSize = 12.sp
                 )
             }
-            TextButton(
-                onClick = { viewModel.clearTerminal() },
-                modifier = Modifier.testTag("clear_terminal_button")
-            ) {
-                Text(
-                    text = stringResource(R.string.clear_action),
-                    color = TerminalCyan,
-                    fontSize = 11.sp,
-                    fontFamily = monoFont
+            val showSpriteDebugOverlay by viewModel.showSpriteDebugOverlay.collectAsState()
+            val selectedDebugSpriteId by viewModel.selectedDebugSpriteId.collectAsState()
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Debug Hitboxes Toggle
+                FilterChip(
+                    selected = showSpriteDebugOverlay,
+                    onClick = { viewModel.toggleSpriteDebugOverlay() },
+                    label = {
+                        Text(
+                            text = if (showSpriteDebugOverlay) stringResource(R.string.sprite_hitboxes_on) else stringResource(R.string.sprite_hitboxes_off),
+                            fontSize = 11.sp,
+                            fontFamily = monoFont
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.FilterCenterFocus,
+                            contentDescription = stringResource(R.string.sprite_hitboxes),
+                            modifier = Modifier.size(14.dp)
+                        )
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = TerminalAmber.copy(alpha = 0.2f),
+                        selectedLabelColor = TerminalAmber,
+                        selectedLeadingIconColor = TerminalAmber,
+                        containerColor = DarkSurface,
+                        labelColor = Color(0xFF94A3B8),
+                        iconColor = Color(0xFF94A3B8)
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true,
+                        selected = showSpriteDebugOverlay,
+                        borderColor = Color(0xFF475569),
+                        selectedBorderColor = TerminalAmber
+                    ),
+                    modifier = Modifier
+                        .testTag("toggle_sprite_hitbox_overlay")
+                        .padding(end = 6.dp)
                 )
+
+                TextButton(
+                    onClick = { viewModel.clearTerminal() },
+                    modifier = Modifier.testTag("clear_terminal_button")
+                ) {
+                    Text(
+                        text = stringResource(R.string.clear_action),
+                        color = TerminalCyan,
+                        fontSize = 11.sp,
+                        fontFamily = monoFont
+                    )
+                }
             }
         }
 
         val graphicsState by viewModel.graphicsState.collectAsState()
+        val showSpriteDebugOverlay by viewModel.showSpriteDebugOverlay.collectAsState()
+        val selectedDebugSpriteId by viewModel.selectedDebugSpriteId.collectAsState()
 
-        // If SCREEN mode > 0, show Retro 320x200 Graphics Canvas with Sprites & Optional Joystick
-        if (graphicsState.mode > 0) {
+        // If SCREEN mode > 0 or active sprites exist, show Retro 320x200 Graphics Canvas with Sprites & Hitboxes
+        if (graphicsState.mode > 0 || graphicsState.sprites.isNotEmpty()) {
             Box(
                 modifier = Modifier
                     .weight(1.3f)
@@ -1162,6 +1211,8 @@ fun TerminalScreen(
             ) {
                 com.example.basic.graphics.RetroGraphicsCanvas(
                     graphicsState = graphicsState,
+                    showDebugBoundingBoxes = showSpriteDebugOverlay,
+                    selectedSpriteId = selectedDebugSpriteId,
                     modifier = Modifier.fillMaxSize()
                 )
 
@@ -1180,7 +1231,7 @@ fun TerminalScreen(
         LazyColumn(
             state = listState,
             modifier = Modifier
-                .weight(if (graphicsState.mode > 0) 0.8f else 1f)
+                .weight(if (graphicsState.mode > 0 || graphicsState.sprites.isNotEmpty()) 0.8f else 1f)
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 8.dp)
                 .testTag("terminal_output_list")
@@ -1394,6 +1445,18 @@ fun DebuggerScreen(
     vmState: VmState,
     monoFont: FontFamily
 ) {
+    val graphicsState by viewModel.graphicsState.collectAsState()
+    val showSpriteDebugOverlay by viewModel.showSpriteDebugOverlay.collectAsState()
+    val selectedDebugSpriteId by viewModel.selectedDebugSpriteId.collectAsState()
+
+    var watchTab by remember { mutableIntStateOf(if (graphicsState.sprites.isNotEmpty()) 1 else 0) }
+
+    LaunchedEffect(graphicsState.sprites.size) {
+        if (graphicsState.sprites.isNotEmpty() && watchTab == 0 && variables.isEmpty()) {
+            watchTab = 1
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1403,120 +1466,755 @@ fun DebuggerScreen(
         // Debug Control Panel
         Card(
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
-            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+            modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "Instruction Pointer (IP): #$currentIp",
-                        color = TerminalCyan,
-                        fontFamily = monoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        text = "Source Code Line: $currentLine",
-                        color = TerminalAmber,
-                        fontFamily = monoFont,
-                        fontSize = 12.sp
-                    )
+            Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Instruction Pointer (IP): #$currentIp",
+                            color = TerminalCyan,
+                            fontFamily = monoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                        Text(
+                            text = "Source Code Line: $currentLine",
+                            color = TerminalAmber,
+                            fontFamily = monoFont,
+                            fontSize = 12.sp
+                        )
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedButton(
+                            onClick = { viewModel.stepLine() },
+                            enabled = vmState == VmState.PAUSED_DEBUG,
+                            modifier = Modifier
+                                .testTag("debugger_step_line_button")
+                                .padding(end = 4.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(Icons.Default.SkipNext, contentDescription = null, tint = TerminalAmber, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text(stringResource(R.string.step_line), fontFamily = monoFont, color = TerminalAmber, fontSize = 11.sp)
+                        }
+
+                        OutlinedButton(
+                            onClick = { viewModel.stepInstruction() },
+                            enabled = vmState == VmState.PAUSED_DEBUG,
+                            modifier = Modifier
+                                .testTag("debugger_step_inst_button")
+                                .padding(end = 4.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(Icons.Default.FastForward, contentDescription = null, tint = TerminalCyan, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text(stringResource(R.string.step_instruction), fontFamily = monoFont, color = TerminalCyan, fontSize = 11.sp)
+                        }
+
+                        Button(
+                            onClick = { viewModel.resumeExecution() },
+                            enabled = vmState == VmState.PAUSED_DEBUG,
+                            colors = ButtonDefaults.buttonColors(containerColor = TerminalGreen.copy(alpha = 0.2f)),
+                            border = BorderStroke(1.dp, TerminalGreen),
+                            modifier = Modifier.testTag("debugger_resume_button"),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, tint = TerminalGreen, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text("Resume", fontFamily = monoFont, color = TerminalGreen, fontSize = 11.sp)
+                        }
+                    }
                 }
 
-                OutlinedButton(
-                    onClick = { viewModel.resumeExecution() },
-                    enabled = vmState == VmState.PAUSED_DEBUG,
-                    modifier = Modifier.testTag("debugger_resume_button")
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Secondary status bar with Hitbox overlay toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = TerminalGreen)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Continue", fontFamily = monoFont, color = TerminalGreen)
+                    FilterChip(
+                        selected = showSpriteDebugOverlay,
+                        onClick = { viewModel.toggleSpriteDebugOverlay() },
+                        label = {
+                            Text(
+                                text = if (showSpriteDebugOverlay) stringResource(R.string.sprite_hitboxes_on) else stringResource(R.string.sprite_hitboxes_off),
+                                fontSize = 10.sp,
+                                fontFamily = monoFont
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.FilterCenterFocus,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp)
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = TerminalAmber.copy(alpha = 0.2f),
+                            selectedLabelColor = TerminalAmber,
+                            selectedLeadingIconColor = TerminalAmber
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = showSpriteDebugOverlay,
+                            borderColor = Color(0xFF475569),
+                            selectedBorderColor = TerminalAmber
+                        ),
+                        modifier = Modifier.testTag("debugger_toggle_hitbox_overlay")
+                    )
+
+                    Text(
+                        text = "${graphicsState.sprites.size} sprites active in VM",
+                        color = if (graphicsState.sprites.isNotEmpty()) TerminalCyan else Color.Gray,
+                        fontFamily = monoFont,
+                        fontSize = 11.sp
+                    )
                 }
             }
         }
 
-        // Live Watch & Variables Inspector
-        Text(
-            text = stringResource(R.string.variables),
-            color = Color.White,
-            fontFamily = monoFont,
-            fontWeight = FontWeight.Bold,
-            fontSize = 14.sp,
-            modifier = Modifier.padding(vertical = 6.dp)
-        )
+        // Watch Window Navigation Tabs
+        TabRow(
+            selectedTabIndex = watchTab,
+            containerColor = DarkSurface,
+            contentColor = TerminalCyan,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+        ) {
+            Tab(
+                selected = watchTab == 0,
+                onClick = { watchTab = 0 },
+                text = { Text("Variables (${variables.size})", fontFamily = monoFont, fontSize = 11.sp) },
+                modifier = Modifier.testTag("watch_tab_variables")
+            )
+            Tab(
+                selected = watchTab == 1,
+                onClick = { watchTab = 1 },
+                text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.tab_inspect_sprite), fontFamily = monoFont, fontSize = 11.sp)
+                        if (graphicsState.sprites.isNotEmpty()) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(TerminalGreen)
+                            )
+                        }
+                    }
+                },
+                modifier = Modifier.testTag("watch_tab_inspect_sprite")
+            )
+            Tab(
+                selected = watchTab == 2,
+                onClick = { watchTab = 2 },
+                text = { Text("Call Stack (${callStack.size})", fontFamily = monoFont, fontSize = 11.sp) },
+                modifier = Modifier.testTag("watch_tab_call_stack")
+            )
+            Tab(
+                selected = watchTab == 3,
+                onClick = { watchTab = 3 },
+                text = { Text(stringResource(R.string.tab_canvas_preview), fontFamily = monoFont, fontSize = 11.sp) },
+                modifier = Modifier.testTag("watch_tab_canvas_preview")
+            )
+        }
 
+        // Watch Window Content
         Card(
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .padding(bottom = 12.dp)
+                .clip(RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp))
         ) {
-            if (variables.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No variables initialized yet", color = Color(0xFF64748B), fontFamily = monoFont)
-                }
-            } else {
-                LazyColumn(modifier = Modifier.fillMaxSize().padding(8.dp).testTag("variables_watch_list")) {
-                    items(variables.toList()) { (name, value) ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp, horizontal = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = name,
-                                color = TerminalCyan,
-                                fontFamily = monoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
-                            )
-                            Text(
-                                text = value.toString(),
-                                color = TerminalGreen,
-                                fontFamily = monoFont,
-                                fontSize = 13.sp
-                            )
+            when (watchTab) {
+                0 -> {
+                    // TAB 0: VARIABLES WATCH
+                    if (variables.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("No variables initialized yet", color = Color(0xFF64748B), fontFamily = monoFont)
+                                if (graphicsState.sprites.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    OutlinedButton(
+                                        onClick = { watchTab = 1 },
+                                        modifier = Modifier.testTag("jump_to_sprite_inspector_button")
+                                    ) {
+                                        Icon(Icons.Default.Widgets, contentDescription = null, tint = TerminalCyan, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Inspect ${graphicsState.sprites.size} Active Sprites ->", fontFamily = monoFont, color = TerminalCyan, fontSize = 12.sp)
+                                    }
+                                }
+                            }
                         }
+                    } else {
+                        Column(modifier = Modifier.fillMaxSize().padding(8.dp)) {
+                            LazyColumn(modifier = Modifier.weight(1f).testTag("variables_watch_list")) {
+                                items(variables.toList()) { (name, value) ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp, horizontal = 6.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = name,
+                                            color = TerminalCyan,
+                                            fontFamily = monoFont,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp
+                                        )
+                                        Text(
+                                            text = value.toString(),
+                                            color = TerminalGreen,
+                                            fontFamily = monoFont,
+                                            fontSize = 13.sp
+                                        )
+                                    }
+                                }
+                            }
+                            if (graphicsState.sprites.isNotEmpty()) {
+                                OutlinedButton(
+                                    onClick = { watchTab = 1 },
+                                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp).testTag("inspect_sprites_quick_button")
+                                ) {
+                                    Icon(Icons.Default.Widgets, contentDescription = null, tint = TerminalAmber, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Inspect Active Sprites (${graphicsState.sprites.size}) ->", fontFamily = monoFont, color = TerminalAmber, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+                1 -> {
+                    // TAB 1: INSPECT SPRITE (Coordinates, Bounding Box, Collision Mask, SPRITEHIT Status)
+                    if (graphicsState.sprites.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    imageVector = Icons.Default.Widgets,
+                                    contentDescription = null,
+                                    tint = Color(0xFF64748B),
+                                    modifier = Modifier.size(44.dp)
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text(
+                                    text = stringResource(R.string.no_sprites_defined),
+                                    color = Color.White,
+                                    fontFamily = monoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Define sprites using SPRITEDEF and SPRITE to inspect their coordinates, dimensions, bounding boxes, and collision masks.",
+                                    color = Color(0xFF94A3B8),
+                                    fontFamily = monoFont,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    } else {
+                        val activeSprites = graphicsState.sprites
+                        val selectedSprite = activeSprites[selectedDebugSpriteId]
+                            ?: activeSprites.values.firstOrNull()
+                            ?: com.example.basic.graphics.Sprite(id = 0)
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                                .padding(10.dp)
+                        ) {
+                            // Sprite Selector Horizontal Chips
+                            Text(
+                                text = "Select Sprite Slot to Inspect:",
+                                color = Color.White,
+                                fontFamily = monoFont,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(bottom = 6.dp)
+                            )
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState())
+                                    .testTag("sprite_selector_row"),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                for ((id, s) in activeSprites) {
+                                    val isSelected = (s.id == selectedSprite.id)
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { viewModel.selectDebugSprite(id) },
+                                        label = {
+                                            Text(
+                                                text = "Sprite #$id: (${s.x},${s.y})",
+                                                fontFamily = monoFont,
+                                                fontSize = 11.sp
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(8.dp)
+                                                    .clip(CircleShape)
+                                                    .background(if (s.visible) TerminalGreen else Color.Gray)
+                                            )
+                                        },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = TerminalCyan.copy(alpha = 0.25f),
+                                            selectedLabelColor = TerminalCyan,
+                                            containerColor = Color(0xFF0F172A),
+                                            labelColor = Color(0xFFCBD5E1)
+                                        ),
+                                        border = FilterChipDefaults.filterChipBorder(
+                                            enabled = true,
+                                            selected = isSelected,
+                                            borderColor = Color(0xFF334155),
+                                            selectedBorderColor = TerminalCyan
+                                        ),
+                                        modifier = Modifier.testTag("sprite_chip_$id")
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Main Sprite Inspector Card
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                                border = BorderStroke(1.dp, Color(0xFF334155)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("sprite_inspector_card")
+                            ) {
+                                Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+                                    // Inspector Header
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(10.dp)
+                                                    .clip(CircleShape)
+                                                    .background(TerminalGreen)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "SPRITE #${selectedSprite.id}",
+                                                color = TerminalCyan,
+                                                fontFamily = monoFont,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 15.sp
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Surface(
+                                                color = Color(0xFF1E293B),
+                                                shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = "${selectedSprite.width}x${selectedSprite.height}",
+                                                    color = TerminalAmber,
+                                                    fontFamily = monoFont,
+                                                    fontSize = 11.sp,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+
+                                        Surface(
+                                            color = if (selectedSprite.visible) Color(0x2210B981) else Color(0x22EF4444),
+                                            border = BorderStroke(1.dp, if (selectedSprite.visible) TerminalGreen else Color(0xFFEF4444)),
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = if (selectedSprite.visible) "VISIBLE (HITBOX ON)" else "HIDDEN (NO HIT)",
+                                                color = if (selectedSprite.visible) TerminalGreen else Color(0xFFEF4444),
+                                                fontFamily = monoFont,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 10.sp,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    // Metric Rows (X, Y, Width, Height, Ranges)
+                                    Text(
+                                        text = "COORDINATES & SPRITEHIT RANGES",
+                                        color = Color(0xFF94A3B8),
+                                        fontFamily = monoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(Color(0xFF1E293B))
+                                            .padding(8.dp)
+                                    ) {
+                                        SpriteMetricRow(label = "X Position", value = "${selectedSprite.x}", monoFont = monoFont)
+                                        SpriteMetricRow(label = "Y Position", value = "${selectedSprite.y}", monoFont = monoFont)
+                                        SpriteMetricRow(label = "Width", value = "${selectedSprite.width} px", monoFont = monoFont)
+                                        SpriteMetricRow(label = "Height", value = "${selectedSprite.height} px", monoFont = monoFont)
+                                        SpriteMetricRow(
+                                            label = "SPRITEHIT X Range",
+                                            value = "[${selectedSprite.x} .. ${selectedSprite.x + selectedSprite.width - 1}] (${selectedSprite.width} px)",
+                                            highlight = true,
+                                            monoFont = monoFont
+                                        )
+                                        SpriteMetricRow(
+                                            label = "SPRITEHIT Y Range",
+                                            value = "[${selectedSprite.y} .. ${selectedSprite.y + selectedSprite.height - 1}] (${selectedSprite.height} px)",
+                                            highlight = true,
+                                            monoFont = monoFont
+                                        )
+                                        SpriteMetricRow(
+                                            label = "Bounding Box [L,T,R,B]",
+                                            value = "[${selectedSprite.x}, ${selectedSprite.y}, ${selectedSprite.x + selectedSprite.width}, ${selectedSprite.y + selectedSprite.height}]",
+                                            monoFont = monoFont
+                                        )
+                                        SpriteMetricRow(
+                                            label = "Pattern Def ID",
+                                            value = "#${selectedSprite.patternDefId ?: "Default"}",
+                                            monoFont = monoFont
+                                        )
+                                        SpriteMetricRow(
+                                            label = "Palette Color Index",
+                                            value = "${selectedSprite.colorIndex}",
+                                            monoFont = monoFont
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(12.dp))
+
+                                    // Collision Mask Section
+                                    val solidPixels = selectedSprite.pattern.count { it }
+                                    val totalPixels = selectedSprite.pattern.size.coerceAtLeast(1)
+                                    val solidPercent = (solidPixels * 100) / totalPixels
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = stringResource(R.string.collision_mask),
+                                            color = Color(0xFF94A3B8),
+                                            fontFamily = monoFont,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.sp
+                                        )
+                                        Text(
+                                            text = "$solidPixels/$totalPixels solid pixels ($solidPercent%)",
+                                            color = TerminalCyan,
+                                            fontFamily = monoFont,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                        verticalAlignment = Alignment.Top
+                                    ) {
+                                        // Visual Collision Mask Grid
+                                        SpriteCollisionMaskGrid(
+                                            sprite = selectedSprite,
+                                            modifier = Modifier.weight(1f)
+                                        )
+
+                                        // Binary mask row preview
+                                        Column(
+                                            modifier = Modifier
+                                                .weight(1.2f)
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(Color(0xFF1E293B))
+                                                .padding(6.dp)
+                                        ) {
+                                            Text(
+                                                text = "Pixel Hitmask Rows:",
+                                                color = Color.White,
+                                                fontFamily = monoFont,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            val w = selectedSprite.width
+                                            val h = selectedSprite.height
+                                            val pat = selectedSprite.pattern
+                                            for (row in 0 until minOf(h, 8)) {
+                                                val sb = StringBuilder()
+                                                for (col in 0 until w) {
+                                                    val bit = (row * w + col)
+                                                    sb.append(if (bit in pat.indices && pat[bit]) "1" else "0")
+                                                }
+                                                Text(
+                                                    text = "R$row: $sb",
+                                                    fontFamily = monoFont,
+                                                    fontSize = 10.sp,
+                                                    color = TerminalGreen
+                                                )
+                                            }
+                                            if (h > 8) {
+                                                Text(text = "... (${h - 8} more rows)", color = Color.Gray, fontFamily = monoFont, fontSize = 9.sp)
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(12.dp))
+
+                                    // Active Collision Detection Checks vs Other Sprites
+                                    Text(
+                                        text = "LIVE SPRITEHIT STATUS VS OTHER SPRITES",
+                                        color = Color(0xFF94A3B8),
+                                        fontFamily = monoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                    val otherSprites = activeSprites.values.filter { it.id != selectedSprite.id }
+                                    if (otherSprites.isEmpty()) {
+                                        Text(
+                                            text = "No other active sprites currently loaded in VM.",
+                                            color = Color.Gray,
+                                            fontFamily = monoFont,
+                                            fontSize = 11.sp
+                                        )
+                                    } else {
+                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            for (other in otherSprites) {
+                                                val isHit = selectedSprite.hits(other)
+                                                val bgColor = if (isHit) Color(0x33EF4444) else Color(0xFF1E293B)
+                                                val borderColor = if (isHit) Color(0xFFEF4444) else Color(0xFF334155)
+
+                                                Card(
+                                                    colors = CardDefaults.cardColors(containerColor = bgColor),
+                                                    border = BorderStroke(1.dp, borderColor),
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    Column(modifier = Modifier.padding(8.dp)) {
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Text(
+                                                                text = "Sprite #${other.id} at (${other.x}, ${other.y})",
+                                                                color = Color.White,
+                                                                fontFamily = monoFont,
+                                                                fontWeight = FontWeight.Bold,
+                                                                fontSize = 12.sp
+                                                            )
+                                                            Surface(
+                                                                color = if (isHit) Color(0xFFEF4444) else Color(0xFF334155),
+                                                                shape = RoundedCornerShape(4.dp)
+                                                            ) {
+                                                                Text(
+                                                                    text = if (isHit) "SPRITEHIT = 1 (COLLIDING!)" else "SPRITEHIT = 0 (CLEAR)",
+                                                                    color = if (isHit) Color.White else Color(0xFF94A3B8),
+                                                                    fontFamily = monoFont,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    fontSize = 10.sp,
+                                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                                )
+                                                            }
+                                                        }
+
+                                                        if (isHit) {
+                                                            val ovLeft = maxOf(selectedSprite.x, other.x)
+                                                            val ovRight = minOf(selectedSprite.x + selectedSprite.width, other.x + other.width)
+                                                            val ovTop = maxOf(selectedSprite.y, other.y)
+                                                            val ovBottom = minOf(selectedSprite.y + selectedSprite.height, other.y + other.height)
+                                                            Text(
+                                                                text = "Overlap Bounds: X: [$ovLeft .. $ovRight], Y: [$ovTop .. $ovBottom] (${ovRight - ovLeft}x${ovBottom - ovTop} px)",
+                                                                color = Color(0xFFFCA5A5),
+                                                                fontFamily = monoFont,
+                                                                fontSize = 11.sp,
+                                                                modifier = Modifier.padding(top = 2.dp)
+                                                            )
+                                                        } else {
+                                                            val dx = other.x - selectedSprite.x
+                                                            val dy = other.y - selectedSprite.y
+                                                            Text(
+                                                                text = "Offset: ΔX = $dx px, ΔY = $dy px",
+                                                                color = Color(0xFF94A3B8),
+                                                                fontFamily = monoFont,
+                                                                fontSize = 11.sp,
+                                                                modifier = Modifier.padding(top = 2.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(12.dp))
+
+                                    // Mini Canvas Preview with Bounding Box Overlay
+                                    Text(
+                                        text = "VISUAL BOUNDING BOX OVERLAY PREVIEW",
+                                        color = Color(0xFF94A3B8),
+                                        fontFamily = monoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    com.example.basic.graphics.RetroGraphicsCanvas(
+                                        graphicsState = graphicsState,
+                                        showDebugBoundingBoxes = true,
+                                        selectedSpriteId = selectedSprite.id,
+                                        modifier = Modifier.fillMaxWidth().height(160.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                2 -> {
+                    // TAB 2: GOSUB CALL STACK
+                    if (callStack.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("Call stack is empty (main routine)", color = Color(0xFF64748B), fontFamily = monoFont, fontSize = 12.sp)
+                        }
+                    } else {
+                        LazyColumn(modifier = Modifier.fillMaxSize().padding(8.dp)) {
+                            items(callStack) { frame ->
+                                Text(
+                                    text = frame.toString(),
+                                    color = Color(0xFFF472B6),
+                                    fontFamily = monoFont,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+                3 -> {
+                    // TAB 3: FULL CRT SCREEN & HITBOXES PREVIEW
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        com.example.basic.graphics.RetroGraphicsCanvas(
+                            graphicsState = graphicsState,
+                            showDebugBoundingBoxes = showSpriteDebugOverlay,
+                            selectedSpriteId = selectedDebugSpriteId,
+                            modifier = Modifier.fillMaxSize()
+                        )
                     }
                 }
             }
         }
+    }
+}
 
-        // GOSUB Call Stack
+@Composable
+private fun SpriteMetricRow(
+    label: String,
+    value: String,
+    monoFont: FontFamily,
+    highlight: Boolean = false
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Text(
-            text = stringResource(R.string.call_stack),
-            color = Color.White,
+            text = label,
+            color = if (highlight) TerminalAmber else Color(0xFF94A3B8),
             fontFamily = monoFont,
-            fontWeight = FontWeight.Bold,
-            fontSize = 14.sp,
-            modifier = Modifier.padding(vertical = 6.dp)
+            fontSize = 11.sp
         )
+        Text(
+            text = value,
+            color = if (highlight) TerminalGreen else Color.White,
+            fontFamily = monoFont,
+            fontWeight = if (highlight) FontWeight.Bold else FontWeight.Normal,
+            fontSize = 11.sp
+        )
+    }
+}
 
-        Card(
-            colors = CardDefaults.cardColors(containerColor = DarkSurface),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(100.dp)
-        ) {
-            if (callStack.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Call stack is empty (main routine)", color = Color(0xFF64748B), fontFamily = monoFont, fontSize = 12.sp)
-                }
-            } else {
-                LazyColumn(modifier = Modifier.fillMaxSize().padding(8.dp)) {
-                    items(callStack) { frame ->
-                        Text(
-                            text = frame.toString(),
-                            color = Color(0xFFF472B6),
-                            fontFamily = monoFont,
-                            fontSize = 12.sp
-                        )
-                    }
+/**
+ * Pixel-by-pixel collision mask grid renderer.
+ * Visualizes solid (collidable) vs transparent bits.
+ */
+@Composable
+fun SpriteCollisionMaskGrid(
+    sprite: com.example.basic.graphics.Sprite,
+    modifier: Modifier = Modifier
+) {
+    val width = sprite.width
+    val height = sprite.height
+    val pattern = sprite.pattern
+
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(Color(0xFF020617))
+            .border(1.dp, Color(0xFF334155), RoundedCornerShape(6.dp))
+            .padding(6.dp)
+            .testTag("collision_mask_grid_${sprite.id}"),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Hitmask [${width}x${height}]",
+            color = TerminalCyan,
+            fontSize = 10.sp,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+        for (y in 0 until minOf(height, 16)) {
+            Row(
+                horizontalArrangement = Arrangement.Center
+            ) {
+                for (x in 0 until minOf(width, 16)) {
+                    val idx = y * width + x
+                    val isSolid = idx in pattern.indices && pattern[idx]
+                    Box(
+                        modifier = Modifier
+                            .size(if (width <= 8) 12.dp else 7.dp)
+                            .padding(0.5.dp)
+                            .clip(RoundedCornerShape(1.dp))
+                            .background(
+                                if (isSolid) Color(0xFF22C55E) else Color(0xFF1E293B)
+                            )
+                            .border(0.5.dp, Color(0xFF334155), RoundedCornerShape(1.dp))
+                    )
                 }
             }
         }

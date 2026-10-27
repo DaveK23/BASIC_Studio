@@ -70,6 +70,27 @@ class BasicViewModel : ViewModel() {
 
     val soundSynth = com.example.basic.audio.RetroSoundSynth(viewModelScope)
 
+    private val _showSpriteDebugOverlay = MutableStateFlow(true)
+    val showSpriteDebugOverlay: StateFlow<Boolean> = _showSpriteDebugOverlay.asStateFlow()
+
+    fun toggleSpriteDebugOverlay() {
+        _showSpriteDebugOverlay.value = !_showSpriteDebugOverlay.value
+    }
+
+    fun setSpriteDebugOverlay(enabled: Boolean) {
+        _showSpriteDebugOverlay.value = enabled
+    }
+
+    private val _selectedDebugSpriteId = MutableStateFlow(0)
+    val selectedDebugSpriteId: StateFlow<Int> = _selectedDebugSpriteId.asStateFlow()
+
+    fun selectDebugSprite(id: Int) {
+        _selectedDebugSpriteId.value = id
+    }
+
+    val spriteDefinitions: Map<Int, com.example.basic.vm.SpriteDefinition>
+        get() = vm.spriteDefinitionsMap
+
     private val _selectedIconIndex = MutableStateFlow(0)
     val selectedIconIndex: StateFlow<Int> = _selectedIconIndex.asStateFlow()
 
